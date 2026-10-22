@@ -18,11 +18,13 @@ def original_factory(code):
     assert code.startswith("(async function () {") and code.rstrip().endswith("})();")
     body = code[len("(async function () {"):].rstrip()[:-len("})();")]
     declarations, main = body.split("//主流程\n")
-    # Split chooseCharacter at the original start click to select a named deck first.
-    declarations = declarations.replace("async function chooseCharacter() {", "async function selectCharacter() {", 1)
+    # Do not split the original invitation flow or assume it is already the deck preparation page.
     start = "click(1443, 875);//开始"
     assert declarations.count(start) == 1
-    declarations = declarations.replace(start, "}\nasync function startChallenge() {\n" + start, 1)
+    declarations = declarations.replace(start, "await hooks.beforeInviteStart();\n" + start, 1)
+    confirm = "click(1175, 754);//确认"
+    assert declarations.count(confirm) == 1
+    declarations = declarations.replace(confirm, "await hooks.beforeInviteConfirm();\n" + confirm, 1)
     native = 'await dispatcher.runTask(new SoloTask("AutoGeniusInvokation"));'
     assert declarations.count(native) == 1
     declarations = declarations.replace(native, "const result = await hooks.play();", 1)
@@ -33,10 +35,15 @@ def original_factory(code):
     submit = "click(1185,755 );//点击购买\nawait sleep(1000);"
     assert declarations.count(submit) == 1
     declarations = declarations.replace(submit, "await hooks.beforePurchase();\n" + submit + "\nawait hooks.afterPurchase();", 1)
+    dialogue_loop = "while (talkTime < 30) {\n"
+    assert declarations.count(dialogue_loop) == 1
+    declarations = declarations.replace(dialogue_loop, dialogue_loop + "    if (await hooks.dialogueStep()) return;\n", 1)
+    assert main.count("if (letterNumber <= i)") == 1
+    main = main.replace("if (letterNumber <= i)", "if (settings.autoBuy === true && letterNumber <= i)", 1)
     pair = "await chooseCharacter();\n   await Playcards();"
     assert main.count(pair) == 2
     for leg in [1, 2]:
-        main = main.replace(pair, f"await hooks.challenge(selectCharacter, startChallenge, Playcards, {{round: i + 1, leg: {leg}}});", 1)
+        main = main.replace(pair, f"await hooks.challenge(chooseCharacter, Playcards, {{round: i + 1, leg: {leg}}});", 1)
     finished = "log.info(`完成挑战第${i+1}次`);"
     assert main.count(finished) == 1
     main = main.replace(finished, finished + "\n   await hooks.roundFinished(i + 1);", 1)
@@ -133,7 +140,9 @@ def main():
     instructions = (output / "README.md").read_text(encoding="utf-8")
     for identity, folder in IDS.items():
         instructions = instructions.replace(f"../../vendor/players/{folder}/README.md", f"engines/{identity}/README.md")
+    instructions = instructions.replace("../../docs/UPSTREAM_LINE_REVIEW.md", "UPSTREAM_LINE_REVIEW.md")
     (output / "README.md").write_text(instructions, encoding="utf-8")
+    shutil.copy2(ROOT / "docs/UPSTREAM_LINE_REVIEW.md", output / "UPSTREAM_LINE_REVIEW.md")
     original = (ROOT / "vendor/invitation/main.js").read_text(encoding="utf-8")
     (output / "lib/original-navigation.js").write_text(original_factory(original), encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", output / "LICENSE-GPL-3.0.txt")

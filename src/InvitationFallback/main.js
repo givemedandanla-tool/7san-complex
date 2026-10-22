@@ -11,7 +11,7 @@
   const report = {
     event(type, data) {
       events.push({ at: new Date().toISOString(), type, data });
-      if (!file.writeTextSync("data/last-run.json", JSON.stringify({ version: "0.2.0", outcome, events }, null, 2), false))
+      if (!file.writeTextSync("data/last-run.json", JSON.stringify({ version: "0.3.0", outcome, events }, null, 2), false))
         throw new Error("无法写入运行记录 data/last-run.json");
     }
   };
@@ -31,9 +31,10 @@
     ui = new T.UI(host, cfg, JSON.parse(file.readTextSync("ui-profile.json")), report);
     const engines = new T.Engines(file, cfg, ui, report);
     engines.validate(cfg.queue);
-    report.event("start", { mode: "original", challengeNumber: cfg.challengeNumber, letterNumber: cfg.letterNumber,
+    report.event("start", { mode: "original", challengeNumber: cfg.challengeNumber, letterNumber: cfg.letterNumber, autoBuy: cfg.autoBuy,
       strategies: cfg.queue.map(x => ({ id: x.id, deck: x.deck })), version });
     log.info("[原版邀约流程] 挑战人数 " + cfg.challengeNumber + "；策略顺序：" + cfg.queue.map(x => x.title).join(" → "));
+    log.info("[购函设置] 持有 " + cfg.letterNumber + " 张；自动购函" + (cfg.autoBuy ? "已开启" : "已关闭，不前往商店"));
     const result = await new T.OriginalFlow(ui, cfg, engines, report, log).run();
     outcome = result.outcome;
     report.event("finish", result);

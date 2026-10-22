@@ -55,6 +55,11 @@
     }
     result(screen) { return T.classifyResult(screen.rowsAt(this.region("result")).map(r => r.text).join(" ")); }
     isReady(screen) { return this.profile.texts.prepare.some(x => screen.has(x)) && !screen.has("更改牌组外观"); }
+    isInvitation(screen) {
+      return !this.isReady(screen) && !this.isDeckChooser(screen) &&
+        (screen.has("邀约对局") || screen.has("邀请对局")) &&
+        (screen.has("友好对局") || screen.has("认真胜负"));
+    }
     isDeckChooser(screen) { return !this.isReady(screen) && (screen.has("编辑牌组") || screen.has("选择牌组")) && !screen.has("更改牌组外观"); }
     isOpening(screen) {
       return !this.isReady(screen) && !this.isDeckChooser(screen) &&
@@ -74,9 +79,13 @@
       if (!requireVisible && context.verified) return;
       throw new T.TrialError("OPPONENT_UNVERIFIED", "未在画面中确认对手「" + context.name + "」。请从显示该角色名称的邀约详情页启动，或调整 ui-profile.json 的 opponent 区域");
     }
-    verifyOriginalSelection(context) {
-      const screen = this.read();
-      if (!this.isReady(screen)) throw new T.TrialError("UI", "原版选角后未识别到出战牌组区域；已停止，未开始对局");
+    verifyOriginalSelection(context, screen) {
+      screen = screen || this.read();
+      // Invitation/difficulty selection precedes deck preparation. Locked tabs are valid here.
+      if (!this.isReady(screen) && !this.isInvitation(screen)) {
+        if (context.selectionSeen) throw new T.TrialError("OPPONENT_UNVERIFIED", "败北重开后无法确认原邀约详情，停止重试");
+        return false;
+      }
       const signature = screen.rowsAt(this.region("invitationIdentity")).map(r => T.norm(r.text)).filter(Boolean).sort().join("|");
       if (context.selectionSeen && (!signature || signature !== context.signature))
         throw new T.TrialError("OPPONENT_UNVERIFIED", "败北重开后邀约详情与上一局不一致或无法辨识，停止换策略");
@@ -86,6 +95,7 @@
       context.verified = true;
       context.difficultySelected = true;
       this.report.event("original-selection", { round: context.round, leg: context.leg, signature });
+      return true;
     }
     async wait(check, label, timeout) {
       const end = Date.now() + (timeout || this.profile.timeoutMs);

@@ -5,6 +5,7 @@
     constructor(ui, config, engines, report, logger) {
       this.ui = ui; this.h = ui.h; this.config = config; this.engines = engines;
       this.report = report; this.log = logger; this.recipe = null; this.challenges = [];
+      this.active = null; this.attempt = null;
     }
     async canPurchase() {
       this.ui.checkCancelled();
@@ -28,46 +29,90 @@
         throw new T.TrialError("PURCHASE_JOURNAL", "已确认购函但无法更新记录，请检查库存后再试");
       this.report.event("purchase-confirmed", { quantity: 1 });
     }
+    record(entry) {
+      this.active.history.push(entry);
+      this.report.event("attempt", Object.assign({}, this.active.location, entry));
+    }
+    async prepareDeckIfReady(screen) {
+      if (!this.attempt || !this.attempt.preGame) return false;
+      screen = screen || this.ui.read();
+      if (!this.ui.isReady(screen)) return false;
+      if (this.attempt.prepared) return true;
+      while (this.active.cursor < this.config.queue.length) {
+        this.recipe = this.config.queue[this.active.cursor];
+        try {
+          await this.ui.selectDeck(this.recipe, this.active.context);
+          this.attempt.prepared = true;
+          this.log.info("[出战牌组] 「" + this.recipe.deck + "」，策略「" + this.recipe.title + "」");
+          return true;
+        } catch (error) {
+          if (error.code !== "DECK_NOT_FOUND") throw error;
+          this.record({ strategy: this.recipe.id, deck: this.recipe.deck, outcome: "skipped", reason: error.message });
+          this.active.cursor++;
+        }
+      }
+      throw new T.TrialError("EXHAUSTED", "没有找到本段可用牌组，停止开局", { played: this.active.played, history: this.active.history });
+    }
+    async beforeInviteStart() {
+      const screen = this.ui.read();
+      // This is still the original invitation page in many game states, including a locked serious tab.
+      // Observe it without requiring it to be the later deck preparation page.
+      this.ui.verifyOriginalSelection(this.active.context, screen);
+      await this.prepareDeckIfReady(screen);
+    }
+    async beforeInviteConfirm() { await this.prepareDeckIfReady(); }
+    requirePreparedDeck() {
+      if (!this.attempt || !this.attempt.prepared)
+        throw new T.TrialError("DECK_SELECTION_TOO_LATE", "已进入初始手牌但尚未经过可换牌组的准备页，不能确认牌组；已停止，请提供现场诊断");
+    }
+    async dialogueStep(screen) {
+      // This hook must stay inactive during the original post-game dialogue.
+      if (!this.attempt || !this.attempt.preGame) return false;
+      screen = screen || this.ui.read();
+      if (this.ui.isReady(screen)) {
+        await this.prepareDeckIfReady(screen);
+        await this.ui.startMatch(this.recipe, this.active.context);
+        return true;
+      }
+      if (this.ui.isOpening(screen)) { this.requirePreparedDeck(); return true; }
+      return false;
+    }
     async play() {
+      // Original dialogue may finish just before the preparation page finishes loading.
+      await this.ui.wait(async screen => {
+        if (this.ui.result(screen)) throw new T.TrialError("STALE_RESULT", "尚未确认新对局，不能沿用上一局结果");
+        return this.dialogueStep(screen);
+      }, "选好牌组后进入初始手牌", 25000);
+      this.requirePreparedDeck();
+      this.attempt.preGame = false;
       const reported = await this.engines.run(this.recipe), visible = await this.ui.waitResult(8000);
       if (reported !== visible) throw new T.TrialError("RESULT_MISMATCH", "牌手回报与结算画面不一致，停止运行");
       return visible;
     }
-    async challenge(selectCharacter, startChallenge, playCards, location) {
-      const context = Object.assign({ selectionSeen: false }, location);
-      let selected = false, result;
+    async challenge(chooseCharacter, playCards, location) {
+      const context = Object.assign({ selectionSeen: false, originalRoute: true, verified: true, difficultySelected: true }, location);
+      const state = this.active = { context, location, cursor: 0, played: 0, history: [] };
+      let outcome = "lose";
       this.report.event("challenge-start", location);
       try {
-        result = await T.runAttempts(this.config.queue, this.config.queue.length, {
-          prepare: async recipe => {
-            this.recipe = recipe;
-            if (!selected) {
-              await selectCharacter();
-              this.ui.verifyOriginalSelection(context);
-              selected = true;
-            }
-            this.log.info("[原版邀约] 第 " + location.round + " 轮／第 " + location.leg + " 段：" + recipe.title + "，牌组「" + recipe.deck + "」");
-            await this.ui.selectDeck(recipe, context);
-          },
-          play: async () => {
-            this.ui.checkCancelled();
-            await startChallenge();
-            selected = false;
-            // Original Playcards owns pre-game dialogue, result exit and post-game dialogue.
-            return playCards();
-          },
-          reopen: async () => {
-            this.log.info("[换策略] 已确认败北，沿原版选角步骤重开本段；不重跑传送、购函或走位。");
-          },
-          record: async entry => this.report.event("attempt", Object.assign({}, location, entry))
-        });
-      } catch (error) {
-        if (error.code !== "EXHAUSTED" || !error.details || !error.details.played) throw error;
-        // The original script continues to its next leg/round after a completed game.
-        // Preserve that behavior after all requested strategies lose; record failure, never claim victory.
-        result = { outcome: "lose", played: error.details.played, history: error.details.history };
-        this.log.warn("[本段未获胜] 所有可用策略已尝试，按原版流程继续下一段／轮；失败已记录。");
-      }
+        while (state.cursor < this.config.queue.length) {
+          this.ui.checkCancelled();
+          this.recipe = this.config.queue[state.cursor];
+          this.attempt = { preGame: true, prepared: false };
+          // Complete the original function, including both start/confirm clicks, in the original order.
+          await chooseCharacter();
+          const result = await playCards();
+          if (result !== "win" && result !== "lose") throw new T.TrialError("RESULT_UNKNOWN", "没有确认胜败，停止换策略");
+          state.played++;
+          this.record({ strategy: this.recipe.id, deck: this.recipe.deck, outcome: result, match: state.played });
+          if (result === "win") { outcome = "win"; break; }
+          state.cursor++;
+          if (state.cursor < this.config.queue.length)
+            this.log.info("[换策略] 已确认败北，原版退出与对话已结束；重新选本段，不传送或购函。");
+        }
+      } finally { this.attempt = null; this.active = null; }
+      const result = { outcome, played: state.played, history: state.history };
+      if (outcome === "lose") this.log.warn("[本段未获胜] 已记录失败，按原版继续下一段／轮。");
       this.challenges.push(Object.assign({}, location, result));
       this.report.event("challenge-finish", Object.assign({}, location, result));
       return result;
@@ -78,9 +123,11 @@
         log: this.log,
         sleep: milliseconds => this.ui.pause(milliseconds),
         file: T.scopedFile(this.h.file, "upstream-invitation"),
-        settings: { challengeNumber: this.config.challengeNumber, letterNumber: this.config.letterNumber },
+        settings: { challengeNumber: this.config.challengeNumber, letterNumber: this.config.letterNumber, autoBuy: this.config.autoBuy },
         hooks: {
           canPurchase: () => this.canPurchase(), beforePurchase: () => this.beforePurchase(), afterPurchase: () => this.afterPurchase(),
+          beforeInviteStart: () => this.beforeInviteStart(), beforeInviteConfirm: () => this.beforeInviteConfirm(),
+          dialogueStep: () => this.dialogueStep(),
           play: () => this.play(),
           challenge: (...args) => this.challenge(...args),
           roundFinished: async round => this.report.event("round-finish", { round })

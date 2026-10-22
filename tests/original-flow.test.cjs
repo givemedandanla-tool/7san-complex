@@ -38,16 +38,17 @@ function host(settings) {
 
 for (const [rounds, letters, purchases] of [[1, 1, 0], [3, 0, 3], [3, 2, 1]]) {
   test(`original navigation input and timing trace is preserved (${rounds} rounds, ${letters} letters)`, async () => {
-    const settings = { challengeNumber: rounds, letterNumber: letters };
+    const settings = { challengeNumber: rounds, letterNumber: letters, autoBuy: true };
     const originalHost = host(settings), adaptedHost = host(settings), locations = [];
     const source = fs.readFileSync(path.join(ROOT, 'vendor/invitation/main.js'), 'utf8');
     await vm.runInNewContext(source, originalHost);
     let bought = 0;
     const navigation = vm.runInNewContext(factoryCode)({ ...adaptedHost, hooks: {
       canPurchase: async () => {}, beforePurchase: async () => bought++, afterPurchase: async () => {},
+      beforeInviteStart: async () => {}, beforeInviteConfirm: async () => {}, dialogueStep: async () => false,
       roundFinished: async () => {},
       play: async () => { adaptedHost.trace.push(['play']); return 'win'; },
-      challenge: async (select, start, play, where) => { locations.push({ ...where }); await select(); await start(); return play(); }
+      challenge: async (choose, play, where) => { locations.push({ ...where }); await choose(); return play(); }
     } });
     await navigation.run(); navigation.dispose();
     assert.deepEqual(adaptedHost.trace, originalHost.trace);
@@ -61,11 +62,17 @@ for (const [rounds, letters, purchases] of [[1, 1, 0], [3, 0, 3], [3, 2, 1]]) {
 function integration(raw, results, missing = []) {
   const { T } = load(['core', 'original-flow']);
   const cfg = T.config(raw), h = host(cfg), calls = [], events = [];
-  let lastResult, selections = 0;
+  let lastResult, selections = 0, page = 'ready';
+  const originalClick = h.click;
+  h.click = (x, y) => { originalClick(x, y); if (x === 446 && y === 413) page = 'ready'; };
   h.file.readTextSync = p => { assert.equal(p, 'lib/original-navigation.js'); return factoryCode; };
   const report = { event: (type, data) => events.push({ type, data }) };
   const ui = {
     h, checkCancelled() {}, pause: ms => h.sleep(ms),
+    read: () => ({ page }), isReady: s => s.page === 'ready', isOpening: s => s.page === 'opening',
+    result: s => s.page === 'result' ? lastResult : null,
+    wait: async check => { const result = await check({ page }); assert(result, 'expected the mock to reach the opening page'); return result; },
+    startMatch: async () => { page = 'opening'; },
     verifyOriginalSelection() { selections++; },
     selectDeck: async r => { calls.push('deck:' + r.id); if (missing.includes(r.id)) throw new T.TrialError('DECK_NOT_FOUND', 'missing'); },
     waitResult: async () => lastResult
@@ -74,7 +81,7 @@ function integration(raw, results, missing = []) {
     calls.push('play:' + r.id);
     const next = results.shift();
     if (next instanceof Error) throw next;
-    lastResult = next;
+    lastResult = next; page = 'result';
     return next;
   } };
   return { T, cfg, calls, events, h, ui, flow: new T.OriginalFlow(ui, cfg, engines, report, h.log), selections: () => selections };
@@ -134,7 +141,7 @@ test('player/result disagreement halts before cleanup and cannot be treated as a
 test('original settings need no target or difficulty; entered deck names and order are respected', () => {
   const { T } = load(['core']);
   const defaults = T.config({});
-  assert.equal(defaults.challengeNumber, 1); assert.equal(defaults.letterNumber, 1);
+  assert.equal(defaults.challengeNumber, 1); assert.equal(defaults.letterNumber, 0); assert.equal(defaults.autoBuy, false);
   assert.equal(defaults.queue.length, 4);
   const cfg = T.config({ challengeNumber: '3', letterNumber: '0', strategyOrder: '莫早卢，月绽放', mozailuDeck: '牌组甲', moonbloomDeck: '牌组乙' });
   assert.deepEqual(Array.from(cfg.queue, x => [x.id, x.deck]), [['mozailu', '牌组甲'], ['moonbloom', '牌组乙']]);

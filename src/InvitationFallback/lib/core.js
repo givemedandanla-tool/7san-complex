@@ -51,7 +51,8 @@
       maxMinutes,
       deckPages: integer(s.deckPages, 2, 1, 5, "牌组查找页数"),
       mulligan: s.mulligan || "全部保留",
-      letterNumber: integer(s.letterNumber, 1, 0, 99, "现有邀请函数量"),
+      letterNumber: integer(s.letterNumber, 0, 0, 99, "现有邀请函数量"),
+      autoBuy: s.autoBuy === true,
       diagnosticImages: s.diagnosticImages !== false
     };
   }

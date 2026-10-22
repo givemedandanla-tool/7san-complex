@@ -152,9 +152,8 @@ test('original-flow challenge uses actual OCR deck selection without target inpu
   } };
   const flow = new T.OriginalFlow(ui, cfg, engines, report, { info() {}, warn() {} });
   const result = await flow.challenge(
-    async () => { selectionPages.push(state.page); state.page = 'ready'; },
-    async () => { assert.equal(state.page, 'ready'); state.page = 'opening'; },
-    async () => { const outcome = await flow.play(); await ui.leaveResult(); return outcome; },
+    async () => { selectionPages.push(state.page); state.page = 'ready'; await flow.beforeInviteStart(); await flow.beforeInviteConfirm(); },
+    async () => { await flow.dialogueStep(); const outcome = await flow.play(); await ui.leaveResult(); return outcome; },
     { round: 1, leg: 1 }
   );
   assert.equal(result.outcome, 'win'); assert.equal(result.played, 2);

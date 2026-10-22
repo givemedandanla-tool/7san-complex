@@ -1,6 +1,7 @@
 [
   { "name": "challengeNumber", "type": "input-text", "label": "挑战人数（沿用原版：每轮执行两段对局）", "default": "1" },
-  { "name": "letterNumber", "type": "input-text", "label": "持有邀请函数量（已邀请角色也算；不足时按原版购买）", "default": "1" },
+  { "name": "letterNumber", "type": "input-text", "label": "持有邀请函数量（0＝持有零张；已邀请角色也算；只有开启自动购函才会购买）", "default": "0" },
+  { "name": "autoBuy", "type": "checkbox", "label": "自动购函（默认关闭；开启后才按原版数量不足时购买 1 张）", "default": false },
   { "name": "strategyOrder", "type": "input-text", "label": "策略应用顺序，逗号分隔；只填已准备的策略：雷柯刻、伊嘉早、月绽放、莫早卢、原固定策略", "default": "雷柯刻,伊嘉早,月绽放,莫早卢" },
   { "name": "raidenDeck", "type": "input-text", "label": "雷柯刻的游戏牌组名称（雷电将军／柯莱／刻晴）", "default": "雷柯刻" },
   { "name": "iansanDeck", "type": "input-text", "label": "伊嘉早的游戏牌组名称（伊安珊／嘉明／早柚）", "default": "伊嘉早" },

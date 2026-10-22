@@ -4,15 +4,17 @@
 
 ## 下載與使用
 
-**[下載 InvitationFallback-0.2.0.zip](downloads/InvitationFallback-0.2.0.zip?raw=true)**（約 4.7 MB）。在檔案頁也可按「Download raw file」。[ZIP SHA-256](downloads/SHA256SUMS)。
+**[下載 InvitationFallback-0.3.0.zip](downloads/InvitationFallback-0.3.0.zip?raw=true)**（約 4.7 MB）。在檔案頁也可按「Download raw file」。[ZIP SHA-256](downloads/SHA256SUMS)。
 
 解壓後將 `InvitationFallback` 放到 BetterGI `User/JsScript/`，在調度器設定原版「挑戰人數、持有邀請函數量」，再填各牌組名稱與排序即可。**不用填對手姓名、難度或先進準備頁。**
+
+0.3.0 修正兩個問題：自動購函另設開關且預設關閉，填 `0` 不會自行去買；完整執行原版「邀約對局／確認」，認真勝負鎖定而仍處於友好對局時，也不再因尚未出現牌組準備頁而提前停止。`0` 保留「持有零張」語意，只有開啟自動購函才按原版條件購買。[原版 197 行逐行分析與根因](docs/UPSTREAM_LINE_REVIEW.md)。
 
 例如排序 `雷柯刻,伊嘉早`：每段先打雷柯刻，輸了換伊嘉早；獲勝後繼續下一段，重新從雷柯刻開始。全部策略仍輸則記錄該段失敗，再按原版繼續。技術錯誤或結果不明會停止。
 
 完整環境要求、牌表及運行步驟見[套件說明](src/InvitationFallback/README.md)。遊戲使用簡體中文及 1920×1080，BetterGI 0.66.0+。目前通過離線測試與原版操作軌跡比對，尚未在遊戲內實測。
 
-0.2.0 取代上一版需手動指定對手的入口，恢復原版外層流程；0.1.0 僅保留作歷史下載。
+0.1.0、0.2.0 僅保留作歷史下載，請改用 0.3.0。
 
 ## 開發與打包
 
@@ -24,8 +26,10 @@ npm test
 npm run check
 ```
 
-產物：`dist/InvitationFallback-0.2.0.zip`。`downloads/` 保存對應可安裝成品及校驗碼。
+產物：`dist/InvitationFallback-0.3.0.zip`。`downloads/` 保存對應可安裝成品及校驗碼。
 
 `vendor/` 保存固定版本的原邀約腳本、四套牌手及素材，依 `vendor/lock.json` 校驗。`tools/build.py` 由原版產生導航接入層和牌手工廠，保留原有主流程與牌手決策；建置及執行均無需下載遠端程式。
 
 `tests/original-flow.test.cjs` 對照原版實際原始碼，驗證多輪、不同邀請函數量下的按鍵、點擊與等待序列，並測試四策略重試、兩段與下一輪續跑。另有牌手載入、UI 選牌及購函確認測試。離線模擬不等同遊戲實測。
+
+`tests/invitation-regression.test.cjs` 使用實際 UI、流程及生成導航，模擬鎖定認真勝負、邀約頁沒有牌組控制項、確認或對話後才出現準備頁，並驗證先選牌再出首手牌、購函開關及賽後不誤開新局。這些畫面邊界是 0.2.0 原測試未涵蓋的部分。
