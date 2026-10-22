@@ -1,0 +1,15 @@
+{
+  "manifest_version": 1,
+  "name": "七圣角色邀约·四牌手换策略试跑",
+  "version": "0.1.0",
+  "bgi_version": "0.66.0",
+  "description": "1080p 实验版。为指定邀约对手按名称切换已建牌组；败北后顺序切换四套原有牌手或内建固定策略重打。保留原导航实验入口；首次建议先测已选对手。尚未游戏实测。",
+  "authors": [
+    { "name": "整合试跑版本" },
+    { "name": "柒叶子（原邀约脚本）", "link": "https://github.com/5117600049" },
+    { "name": "巨鲸也是咸鱼（四套原有牌手）", "link": "https://github.com/sxy8161-debug/bettergi-tcg-scripts" }
+  ],
+  "main": "main.js",
+  "settings_ui": "settings.json",
+  "saved_files": ["data/*", "engines/*/logs/*", "ui-profile.json"]
+}
