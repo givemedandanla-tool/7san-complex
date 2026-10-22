@@ -25,6 +25,8 @@ for (const id of ['raiden', 'iansan', 'moonbloom', 'mozailu']) {
 assert(fs.existsSync(path.join(pkg, 'README.md')), 'missing trial instructions');
 const manifest = JSON.parse(fs.readFileSync(path.join(pkg, 'manifest.json')));
 assert.equal(manifest.version, JSON.parse(fs.readFileSync(path.join(root, 'package.json'))).version);
+assert.equal(fs.readFileSync(path.join(pkg, 'main.js'), 'utf8').match(/const scriptVersion = "([^"]+)";/)?.[1], manifest.version,
+  'runtime version must agree with the installed manifest');
 assert(fs.existsSync(path.join(pkg, manifest.main))); assert(fs.existsSync(path.join(pkg, manifest.settings_ui)));
 assert(fs.existsSync(path.join(pkg, 'lib/original-navigation.js')));
 const settings = JSON.parse(fs.readFileSync(path.join(pkg, manifest.settings_ui)));

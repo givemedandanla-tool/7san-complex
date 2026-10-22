@@ -1,0 +1,28 @@
+{
+  "source": "User-provided failure; only opening markers retained, UID and other rows removed.",
+  "version": "0.4.0",
+  "code": "DECK_SELECTION_TOO_LATE",
+  "rows": [
+    {
+      "text": "初始手牌",
+      "x": 841,
+      "y": 170,
+      "width": 236,
+      "height": 63
+    },
+    {
+      "text": "请选择要替换的手牌",
+      "x": 850,
+      "y": 238,
+      "width": 219,
+      "height": 29
+    },
+    {
+      "text": "确定",
+      "x": 948,
+      "y": 933,
+      "width": 59,
+      "height": 33
+    }
+  ]
+}

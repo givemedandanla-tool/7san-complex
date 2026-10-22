@@ -5,17 +5,22 @@
   eval(file.readTextSync("lib/engines.js"));
   eval(file.readTextSync("lib/original-flow.js"));
   const T = globalThis.InvitationTrial;
+  const scriptVersion = "0.4.2";
   let ui = null, outcome = "error", cancellation = null;
   file.createDirectory("data");
   const events = [];
   const report = {
     event(type, data) {
       events.push({ at: new Date().toISOString(), type, data });
-      if (!file.writeTextSync("data/last-run.json", JSON.stringify({ version: "0.4.1", outcome, events }, null, 2), false))
+      if (!file.writeTextSync("data/last-run.json", JSON.stringify({ version: scriptVersion, outcome, events }, null, 2), false))
         throw new Error("无法写入运行记录 data/last-run.json");
     }
   };
   try {
+    const manifestVersion = String(JSON.parse(file.readTextSync("manifest.json")).version);
+    log.info("[邀约脚本版本] " + scriptVersion + "；套件版本 " + manifestVersion);
+    if (manifestVersion !== scriptVersion)
+      throw new T.TrialError("PACKAGE_VERSION", "脚本与套件版本不一致，请完整替换 InvitationFallback 文件夹后重新添加调度任务");
     const cfg = T.config(typeof settings === "undefined" ? {} : settings);
     const version = typeof getVersion === "function" ? String(getVersion()) : "unknown";
     if (version !== "unknown") {

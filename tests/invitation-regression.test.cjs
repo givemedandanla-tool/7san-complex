@@ -8,7 +8,7 @@ const { ROOT, load, row, profile } = require('./helpers.cjs');
 // generated original navigation. Invitation details deliberately have no deck badge.
 function invitationGame(options = {}) {
   const state = {
-    page: 'world', deck: '旧牌组', pendingDeck: null, clock: 0,
+    page: 'world', deck: options.initialDeck || '旧牌组', pendingDeck: null, clock: 0,
     trace: [], captured: 0, disposed: 0, mats: 0, releasedMats: 0,
     results: [...(options.results || ['win', 'win'])], engineCalls: [], starts: 0,
     purchases: 0, selectedDifficulty: '友好对局', files: new Map()
@@ -22,6 +22,7 @@ function invitationGame(options = {}) {
   });
   const record = (kind, data) => state.trace.push({ kind, data, page: state.page });
   function readyRows() {
+    if (options.localOnly) return [row('迪卢克'), row('开始挑战', 1450, 900)];
     return [row('迪卢克'), row('友好对局', 1400, 220), row('我方出战牌组', 1240, 700),
       row(state.deck, 1340, 810), row('开始挑战', 1450, 900)];
   }
@@ -31,8 +32,8 @@ function invitationGame(options = {}) {
         row('🔒认真胜负', 1440, 220), row('邀约对局', 1360, 850)];
       case 'confirm': return [row('是否邀请迪卢克进行对局', 600, 480), row('确认', 1100, 730)];
       case 'ready': return readyRows();
-      case 'chooser': return [row('编辑牌组', 700, 990), row('雷柯刻', 135, 762),
-        row('伊嘉早', 598, 762), row('选择', 1100, 1000)];
+      case 'chooser': return [row('编辑牌组', 700, 990), row('选择', 1100, 1000),
+        ...(options.localOnly ? [] : [row('雷柯刻', 135, 762), row('伊嘉早', 598, 762)])];
       case 'opening': return [row('请选择要替换的手牌', 800, 232)];
       case 'win': case 'lose': return [row(state.page === 'win' ? '对局胜利' : '对局失败', 800, 200), row('退出挑战', 700, 915)];
       case 'post-dialogue': return options.postReadyOverlay ? readyRows() : [row('迪卢克', 400, 1000)];
@@ -46,8 +47,10 @@ function invitationGame(options = {}) {
     sleep: async milliseconds => { state.clock += milliseconds; },
     file: {
       readTextSync(p) {
-        if (p === 'lib/original-navigation.js')
-          return fs.readFileSync(path.join(ROOT, 'dist/InvitationFallback/lib/original-navigation.js'), 'utf8');
+        if (p === 'lib/original-navigation.js') {
+          const source = fs.readFileSync(path.join(ROOT, 'dist/InvitationFallback/lib/original-navigation.js'), 'utf8');
+          return options.legacyDialoguePolling ? source.replace(/^.*hooks\.dialogueStep\("before-dialogue-(space|f)"\).*\n/gm, '') : source;
+        }
         if (!state.files.has(p)) throw new Error('Unexpected file read: ' + p);
         return state.files.get(p);
       },
@@ -71,6 +74,15 @@ function invitationGame(options = {}) {
         width: 1920, height: 1080,
         findMulti: () => capturedRows,
         find(ro) {
+          if (ro.type === 'ocr' && options.localOnly) {
+            const [x, y, w, h] = ro.args;
+            if (state.page === 'ready' && x === 1305 && y === 793)
+              return row(state.deck, x, y, w, h);
+            if (state.page === 'ready' && x === 1200 && y === 650)
+              return row('我方出战牌组', x, y, w, h);
+            if (state.page === 'chooser' && y === 762)
+              return row(['雷柯刻', '伊嘉早', '丙组', '丁组'][(x - 135) / 463], x, y, w, h);
+          }
           const exists = ro.type === 'ocr' || ro.path.endsWith('tavern.png') ||
             ro.path.endsWith('talkSymbol.png') && ['dialogue', 'post-dialogue'].includes(state.page);
           return { isExist: () => exists, isEmpty: () => !exists,
@@ -91,7 +103,7 @@ function invitationGame(options = {}) {
       }
       if (state.page === 'invitation' && x === 1443 && y === 875) { state.page = 'confirm'; return; }
       if (state.page === 'confirm' && x === 1175 && y === 754) {
-        state.page = options.openingImmediately ? 'opening' : options.readyAfterDialogue ? 'dialogue' : 'ready'; record('invite-confirmed'); return;
+        state.page = options.openingImmediately ? 'opening' : options.readyAfterDialogue || options.readyBetweenKeys ? 'dialogue' : 'ready'; record('invite-confirmed'); return;
       }
       if (state.page === 'ready' && x === 1312 && y === 812) { state.page = 'chooser'; record('deck-chooser'); return; }
       if (state.page === 'chooser' && y < 900) { state.pendingDeck = x < 500 ? '雷柯刻' : '伊嘉早'; return; }
@@ -107,6 +119,12 @@ function invitationGame(options = {}) {
     },
     keyPress(key) {
       record('key', key);
+      if (key === 'VK_SPACE' && state.page === 'dialogue' && options.readyBetweenKeys) {
+        state.page = 'ready'; record('space-revealed-ready'); return;
+      }
+      if (key === 'F' && state.page === 'ready' && options.readyBetweenKeys) {
+        state.page = 'opening'; record('unprepared-f-start'); return;
+      }
       if (key === 'ESCAPE' && state.page === 'chooser') { state.page = 'ready'; return; }
       if (key === 'F' && state.page === 'world') { state.page = 'list'; return; }
       if (key === 'F' && state.page === 'dialogue') { state.page = 'ready'; record('dialogue-ready'); return; }
@@ -131,6 +149,35 @@ function invitationGame(options = {}) {
   const logger = { info() {}, warn() {}, error() {} };
   return { T, state, ui, cfg, report, flow: new T.OriginalFlow(ui, cfg, engines, report, logger) };
 }
+
+test('a preparation page appearing between SPACE and F is intercepted before F can start the wrong deck', async () => {
+  const legacy = invitationGame({ readyBetweenKeys: true, legacyDialoguePolling: true });
+  await assert.rejects(legacy.flow.run(), error => error.code === 'DECK_SELECTION_TOO_LATE');
+  assert.equal(legacy.state.engineCalls.length, 0);
+  assert.equal(legacy.state.trace.filter(e => e.kind === 'unprepared-f-start').length, 1);
+  const game = invitationGame({ readyBetweenKeys: true });
+  const result = await game.flow.run();
+  assert.equal(result.wins, 2);
+  assert.equal(game.state.trace.filter(e => e.kind === 'space-revealed-ready').length, 2);
+  assert.equal(game.state.trace.filter(e => e.kind === 'unprepared-f-start').length, 0);
+  assert.deepEqual(game.state.engineCalls, ['raiden', 'raiden']);
+  const checkpoint = JSON.parse(game.state.files.get('data/before-dialogue-f.json'));
+  assert.equal(checkpoint.page.ready, true);
+  for (const stage of ['before-invite-start', 'before-invite-confirm', 'dialogue-poll', 'before-dialogue-space'])
+    assert(game.state.files.has(`data/${stage}.json`), stage);
+});
+
+test('weekly local OCR selects and confirms a deck even when whole-screen OCR omits all deck text', async () => {
+  const game = invitationGame({ localOnly: true, readyBetweenKeys: true });
+  const result = await game.flow.run();
+  assert.equal(result.wins, 2);
+  assert.equal(game.state.deck, '雷柯刻');
+  assert(game.state.trace.some(e => e.kind === 'deck-selected' && e.data === '雷柯刻'));
+  const checkpoint = JSON.parse(game.state.files.get('data/before-dialogue-f.json'));
+  assert(!checkpoint.rows.some(r => r.text.includes('牌组')));
+  assert.equal(checkpoint.probes.prepare.text, '我方出战牌组');
+  assert.equal(game.state.captured, game.state.disposed);
+});
 
 for (const readyAfterDialogue of [false, true]) {
   test(`locked serious tab preserves friendly invitation; named deck is selected only after actual readiness (${readyAfterDialogue ? 'after dialogue' : 'after confirmation'})`, async () => {

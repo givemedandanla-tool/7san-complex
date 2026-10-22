@@ -65,10 +65,10 @@
       if (!this.attempt || !this.attempt.prepared)
         throw new T.TrialError("DECK_SELECTION_TOO_LATE", "已识别到牌桌开局标记，但未确认选好牌组；已停止。请提供 data/before-invite-start.json、before-invite-confirm.json 与 last-error.json");
     }
-    async dialogueStep(screen) {
+    async dialogueStep(screen, stage) {
       // This hook must stay inactive during the original post-game dialogue.
       if (!this.attempt || !this.attempt.preGame) return false;
-      screen = screen || this.ui.read();
+      screen = screen || this.ui.read(stage);
       if (this.ui.isReady(screen)) {
         await this.prepareDeckIfReady(screen);
         await this.ui.startMatch(this.recipe, this.active.context);
@@ -127,7 +127,7 @@
         hooks: {
           canPurchase: () => this.canPurchase(), beforePurchase: () => this.beforePurchase(), afterPurchase: () => this.afterPurchase(),
           beforeInviteStart: () => this.beforeInviteStart(), beforeInviteConfirm: () => this.beforeInviteConfirm(),
-          dialogueStep: () => this.dialogueStep(),
+          dialogueStep: stage => this.dialogueStep(null, stage),
           play: () => this.play(),
           challenge: (...args) => this.challenge(...args),
           roundFinished: async round => this.report.event("round-finish", { round })

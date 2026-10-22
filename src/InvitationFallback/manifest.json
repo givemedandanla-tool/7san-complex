@@ -1,15 +1,27 @@
 {
   "manifest_version": 1,
   "name": "七圣角色邀约全自动·四智能策略",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "bgi_version": "0.66.0",
-  "description": "沿用原版邀约流程接入四智能牌手；修正预览中的出战角色文字被误认为牌局开局，保存邀约/确认前OCR与可选截图用于校准真实选牌入口。1080p简体中文，尚未游戏实测。",
+  "description": "沿用原版邀约流程接入四智能牌手；参照七日历练局部OCR识别牌组名，对话每次按键前观察准备页，选择后等待强制提示消失。1080p简体中文，尚未游戏实测。",
   "authors": [
-    { "name": "整合试跑版本" },
-    { "name": "柒叶子（原邀约脚本）", "link": "https://github.com/5117600049" },
-    { "name": "巨鲸也是咸鱼（四套原有牌手）", "link": "https://github.com/sxy8161-debug/bettergi-tcg-scripts" }
+    {
+      "name": "整合试跑版本"
+    },
+    {
+      "name": "柒叶子（原邀约脚本）",
+      "link": "https://github.com/5117600049"
+    },
+    {
+      "name": "巨鲸也是咸鱼（四套原有牌手）",
+      "link": "https://github.com/sxy8161-debug/bettergi-tcg-scripts"
+    }
   ],
   "main": "main.js",
   "settings_ui": "settings.json",
-  "saved_files": ["data/*", "engines/*/logs/*", "ui-profile.json"]
+  "saved_files": [
+    "data/*",
+    "engines/*/logs/*",
+    "ui-profile.json"
+  ]
 }

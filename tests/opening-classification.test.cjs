@@ -2,12 +2,20 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { load, row, profile } = require('./helpers.cjs');
 const { T } = load(['core', 'ui']);
+const reportedOpening = require('./fixtures/reported-opening-0.4.0.json');
 
 function classify(rows, layout = profile()) {
   const ui = new T.UI({}, {}, layout, { event() {} });
   const screen = new T.Screen(rows);
   return { ui, screen, opening: ui.isOpening(screen) };
 }
+
+test('the reported 0.4.0 failure is an actual opening, not a central preview false positive', () => {
+  const { ui, screen, opening } = classify(reportedOpening.rows);
+  assert.equal(opening, true);
+  assert.equal(ui.isReady(screen), false);
+  assert.equal(ui.isInvitation(screen), false);
+});
 
 test('an explicit invitation page is never simultaneously classified as the opening scene', () => {
   const { ui, screen, opening } = classify([

@@ -37,7 +37,13 @@ def original_factory(code):
     declarations = declarations.replace(submit, "await hooks.beforePurchase();\n" + submit + "\nawait hooks.afterPurchase();", 1)
     dialogue_loop = "while (talkTime < 30) {\n"
     assert declarations.count(dialogue_loop) == 1
-    declarations = declarations.replace(dialogue_loop, dialogue_loop + "    if (await hooks.dialogueStep()) return;\n", 1)
+    declarations = declarations.replace(dialogue_loop, dialogue_loop + '    if (await hooks.dialogueStep("dialogue-poll")) return;\n', 1)
+    # A page can change after either 300ms pause. Observe again before each key;
+    # especially do not send the following F to a newly appeared preparation page.
+    for key, stage in [("VK_SPACE", "before-dialogue-space"), ("F", "before-dialogue-f")]:
+        action = f'            keyPress("{key}");'
+        assert declarations.count(action) == 1
+        declarations = declarations.replace(action, f'            if (await hooks.dialogueStep("{stage}")) return;\n' + action, 1)
     assert main.count("if (letterNumber <= i)") == 1
     pair = "await chooseCharacter();\n   await Playcards();"
     assert main.count(pair) == 2

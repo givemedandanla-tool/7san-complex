@@ -11,6 +11,10 @@
     const x = row.x + row.width / 2, y = row.y + row.height / 2;
     return x >= rect[0] && y >= rect[1] && x < rect[0] + rect[2] && y < rect[1] + rect[3];
   }
+  // The same narrow OCR corrections used by the pinned weekly script's switchCardTeam.
+  function deckText(value) {
+    return T.norm(value).replace(/监/g, "盐").replace(/卵/g, "卯").replace(/刻睛/g, "刻晴");
+  }
   class Screen {
     constructor(rows) { this.rows = rows; this.text = rows.map(x => x.text).join(" "); this.compact = T.norm(this.text); }
     has(text) { return this.compact.includes(T.norm(text)); }
@@ -38,22 +42,47 @@
         const ro = this.h.RecognitionObject.ocr(0, 0, Number(image.width), Number(image.height));
         const rows = T.list(image.findMulti(ro)).map(rowData).filter(r => r.text && Number.isFinite(r.x) && Number.isFinite(r.y));
         this.lastScreen = new Screen(rows);
+        this.lastScreen.probes = {};
+        if (!this.openingMarker(this.lastScreen) && !this.result(this.lastScreen)) {
+          // Prefer small, source-verified OCR regions for card-group text. Whole-screen OCR can miss it.
+          const probes = this.lastScreen.probes;
+          probes.prepare = this.probe(image, this.region("deckBadge"));
+          probes.deck = this.probe(image, this.region("deckNameProbe") || [1305, 793, 206, 46]);
+          if (this.lastScreen.has("编辑牌组") || this.lastScreen.has("选择牌组") ||
+              this.lastScreen.matches(["选择"], this.region("select"), false).length) {
+            probes.slots = (this.profile.deckNameSlots || [0, 1, 2, 3].map(i => [135 + 463 * i, 762, 230, 46]))
+              .map(rect => this.probe(image, rect));
+          }
+        }
         if (stage) this.checkpoint(stage, this.lastScreen, image);
         return this.lastScreen;
       } finally { image.dispose(); }
+    }
+    probe(image, rect) {
+      if (!rect || typeof image.find !== "function") return null;
+      const found = image.find(this.h.RecognitionObject.ocr(...rect));
+      if (!found) return null;
+      const text = String(found.text == null ? found.Text || "" : found.text).trim();
+      if (!text) return null;
+      const row = rowData(found);
+      return { text, x: Number.isFinite(row.x) ? row.x : rect[0], y: Number.isFinite(row.y) ? row.y : rect[1],
+        width: Number.isFinite(row.width) ? row.width : rect[2], height: Number.isFinite(row.height) ? row.height : rect[3] };
     }
     checkpoint(stage, screen, image) {
       const safe = String(stage).replace(/[^a-z0-9_-]/gi, "");
       if (!safe) return;
       const details = { at: new Date().toISOString(), stage: safe,
         page: { ready: this.isReady(screen), invitation: this.isInvitation(screen),
-          deckChooser: this.isDeckChooser(screen), opening: this.isOpening(screen) }, rows: screen.rows };
+          deckChooser: this.isDeckChooser(screen), opening: this.isOpening(screen) }, rows: screen.rows,
+        probes: screen.probes || {} };
       this.report.event("ui-stage", details);
       const file = this.h.file;
       // Checkpoints are diagnostic evidence; an optional image failure must not change the game route.
       try {
-        if (typeof file.writeTextSync === "function")
-          file.writeTextSync("data/" + safe + ".json", JSON.stringify(details, null, 2), false);
+        if (typeof file.writeTextSync === "function") {
+          if (!file.writeTextSync("data/" + safe + ".json", JSON.stringify(details, null, 2), false))
+            this.report.event("checkpoint-error", { stage: safe, message: "无法写入阶段 JSON" });
+        }
         if (this.config.diagnosticImages && typeof file.writeImageSync === "function")
           file.writeImageSync("data/" + safe + ".png", image.srcMat);
       } catch (error) {
@@ -74,15 +103,43 @@
       return rows[0] || null;
     }
     result(screen) { return T.classifyResult(screen.rowsAt(this.region("result")).map(r => r.text).join(" ")); }
-    isReady(screen) { return this.profile.texts.prepare.some(x => screen.has(x)) && !screen.has("更改牌组外观"); }
+    knownDeck(value) {
+      return (this.config.queue || []).some(recipe => deckText(recipe.deck) === deckText(value));
+    }
+    deckRows(screen, name, region) {
+      const probes = screen.probes || {};
+      if (region === "deckBadge" && probes.deck)
+        return deckText(probes.deck.text) === deckText(name) ? [probes.deck] : [];
+      if (region === "deckNames" && probes.slots) {
+        const local = probes.slots.filter(r => r && deckText(r.text) === deckText(name));
+        if (probes.slots.some(Boolean)) return local;
+      }
+      return screen.rowsAt(this.region(region)).filter(r => deckText(r.text) === deckText(name));
+    }
+    isReady(screen) {
+      if (screen.has("更改牌组外观") || this.result(screen)) return false;
+      if (this.profile.texts.prepare.some(x => screen.has(x))) return true;
+      if (screen.has("编辑牌组") || screen.has("选择牌组") || this.openingMarker(screen)) return false;
+      if (screen.probes?.prepare && this.profile.texts.prepare.some(x =>
+          T.norm(screen.probes.prepare.text).includes(T.norm(x)))) return true;
+      // A named deck in the upstream's exact badge ROI plus a start/confirm control is independent evidence.
+      // Do not treat arbitrary text at that coordinate as a deck.
+      const badge = screen.probes?.deck;
+      return Boolean(badge && this.knownDeck(badge.text) &&
+        (screen.matches(this.profile.texts.start, this.region("start"), false).length ||
+         screen.matches(["确认"], this.region("confirm"), false).length));
+    }
     isInvitation(screen) {
       return !this.isReady(screen) && !this.isDeckChooser(screen) &&
         (screen.has("邀约对局") || screen.has("邀请对局")) &&
         (screen.has("友好对局") || screen.has("认真胜负"));
     }
-    isDeckChooser(screen) { return !this.isReady(screen) && (screen.has("编辑牌组") || screen.has("选择牌组")) && !screen.has("更改牌组外观"); }
-    isOpening(screen) {
-      if (this.isReady(screen) || this.isInvitation(screen) || this.isDeckChooser(screen) || screen.has("更改牌组外观")) return false;
+    isDeckChooser(screen) {
+      return !this.isReady(screen) && !screen.has("更改牌组外观") &&
+        (screen.has("编辑牌组") || screen.has("选择牌组") ||
+         screen.probes?.slots?.some(r => r && this.knownDeck(r.text)) && screen.matches(["选择"], this.region("select"), false).length > 0);
+    }
+    openingMarker(screen) {
       // Use the original players' scene locations, not short labels anywhere on an invitation/preview.
       // Older saved profiles may lack these keys; never let an absent ROI mean the whole screen.
       const region = (name, fallback) => this.region(name) || fallback;
@@ -96,6 +153,10 @@
         screen.matches(["重投骰子"], rollHeader, true).length > 0 ||
         screen.rowsAt(pickPrompt).some(r => /^(请选择|选择)出战角色/.test(T.norm(r.text))) ||
         screen.matches(["出战角色"], pickLabel, false).length > 0;
+    }
+    isOpening(screen) {
+      return !this.isReady(screen) && !this.isInvitation(screen) && !this.isDeckChooser(screen) &&
+        !screen.has("更改牌组外观") && this.openingMarker(screen);
     }
     verifyOpponent(context, screen, requireVisible) {
       // Original mode owns character/tab selection. Its panel is checked once after each selection.
@@ -232,7 +293,7 @@
       let screen = this.read();
       if (!this.isReady(screen)) throw new T.TrialError("UI", "切换牌组前未识别到对局准备页");
       this.verifyOpponent(context, screen, false);
-      if (screen.matches([recipe.deck], this.region("deckBadge"), false).length) return;
+      if (this.deckRows(screen, recipe.deck, "deckBadge").length) return;
       // This coordinate is inherited from the weekly script and used only after preparation-page recognition.
       this.h.click(...this.profile.points.openDeck); await this.pause(900);
       await this.wait(s => this.isDeckChooser(s), "打开牌组选择页", 6000);
@@ -241,7 +302,7 @@
       for (let page = 0; page < this.config.deckPages; page++) {
         screen = this.read();
         if (!this.isDeckChooser(screen)) throw new T.TrialError("UI", "牌组查找时离开了牌组选择页");
-        const found = screen.matches([recipe.deck], this.region("deckNames"), false);
+        const found = this.deckRows(screen, recipe.deck, "deckNames");
         if (found.length > 1) throw new T.TrialError("DECK_AMBIGUOUS", "存在同名牌组，请给牌组使用不同名称：" + recipe.deck);
         if (found.length === 1) {
           await this.tap(found[0], "选择牌组「" + recipe.deck + "」");
@@ -251,10 +312,12 @@
             if (!select) throw new T.TrialError("UI", "选中牌组后找不到选择按钮");
             await this.tap(select, "确认出战牌组");
           }
-          await this.wait(s => this.isReady(s) && s.matches([recipe.deck], this.region("deckBadge"), false).length, "确认已切换至「" + recipe.deck + "」", 8000);
+          await this.pause(this.profile.deckSelectDelayMs == null ? 4000 : this.profile.deckSelectDelayMs);
+          await this.wait(s => this.isReady(s) && this.deckRows(s, recipe.deck, "deckBadge").length, "确认已切换至「" + recipe.deck + "」", 8000);
           return;
         }
-        const signature = screen.rowsAt(this.region("deckNames")).map(r => r.text).join("|");
+        const signature = (screen.probes?.slots?.some(Boolean) ? screen.probes.slots.filter(Boolean) :
+          screen.rowsAt(this.region("deckNames"))).map(r => r.text).join("|");
         if (signature === previous || page + 1 === this.config.deckPages) break;
         previous = signature; await this.drag(this.profile.points.deckDragNext);
       }
@@ -267,7 +330,7 @@
       if (!this.isReady(screen)) throw new T.TrialError("UI", "开局前不在对局准备页");
       this.verifyOpponent(context, screen, false);
       if (!context.difficultySelected) throw new T.TrialError("DIFFICULTY_UNVERIFIED", "没有确认本次难度");
-      if (!screen.matches([recipe.deck], this.region("deckBadge"), false).length)
+      if (!this.deckRows(screen, recipe.deck, "deckBadge").length)
         throw new T.TrialError("DECK_UNVERIFIED", "开局前未确认出战牌组名称，不开始对局");
       const start = this.unique(screen, this.profile.texts.start, "start", false);
       if (!start) throw new T.TrialError("UI", "找不到开始挑战按钮；请查看现场诊断");
@@ -302,7 +365,7 @@
     }
     diagnostics(error) {
       const details = { at: new Date().toISOString(), code: error.code || "ERROR", message: String(error.message || error),
-        rows: this.lastScreen ? this.lastScreen.rows : [] };
+        rows: this.lastScreen ? this.lastScreen.rows : [], probes: this.lastScreen?.probes || {} };
       this.h.file.writeTextSync("data/last-error.json", JSON.stringify(details, null, 2), false);
       if (this.config.diagnosticImages && typeof this.h.file.writeImageSync === "function") {
         const image = this.h.captureGameRegion();
