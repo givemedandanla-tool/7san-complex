@@ -38,7 +38,7 @@ function host(settings) {
 
 for (const [rounds, letters, purchases] of [[1, 1, 0], [3, 0, 3], [3, 2, 1]]) {
   test(`original navigation input and timing trace is preserved (${rounds} rounds, ${letters} letters)`, async () => {
-    const settings = { challengeNumber: rounds, letterNumber: letters, autoBuy: true };
+    const settings = { challengeNumber: rounds, letterNumber: letters };
     const originalHost = host(settings), adaptedHost = host(settings), locations = [];
     const source = fs.readFileSync(path.join(ROOT, 'vendor/invitation/main.js'), 'utf8');
     await vm.runInNewContext(source, originalHost);
@@ -61,7 +61,7 @@ for (const [rounds, letters, purchases] of [[1, 1, 0], [3, 0, 3], [3, 2, 1]]) {
 
 function integration(raw, results, missing = []) {
   const { T } = load(['core', 'original-flow']);
-  const cfg = T.config(raw), h = host(cfg), calls = [], events = [];
+  const cfg = T.config({ letterNumber: 3, ...raw }), h = host(cfg), calls = [], events = [];
   let lastResult, selections = 0, page = 'ready';
   const originalClick = h.click;
   h.click = (x, y) => { originalClick(x, y); if (x === 446 && y === 413) page = 'ready'; };
@@ -141,7 +141,7 @@ test('player/result disagreement halts before cleanup and cannot be treated as a
 test('original settings need no target or difficulty; entered deck names and order are respected', () => {
   const { T } = load(['core']);
   const defaults = T.config({});
-  assert.equal(defaults.challengeNumber, 1); assert.equal(defaults.letterNumber, 0); assert.equal(defaults.autoBuy, false);
+  assert.equal(defaults.challengeNumber, 1); assert.equal(defaults.letterNumber, 0); assert.equal(defaults.autoBuy, undefined);
   assert.equal(defaults.queue.length, 4);
   const cfg = T.config({ challengeNumber: '3', letterNumber: '0', strategyOrder: '莫早卢，月绽放', mozailuDeck: '牌组甲', moonbloomDeck: '牌组乙' });
   assert.deepEqual(Array.from(cfg.queue, x => [x.id, x.deck]), [['mozailu', '牌组甲'], ['moonbloom', '牌组乙']]);

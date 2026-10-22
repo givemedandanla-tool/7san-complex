@@ -123,7 +123,7 @@
         log: this.log,
         sleep: milliseconds => this.ui.pause(milliseconds),
         file: T.scopedFile(this.h.file, "upstream-invitation"),
-        settings: { challengeNumber: this.config.challengeNumber, letterNumber: this.config.letterNumber, autoBuy: this.config.autoBuy },
+        settings: { challengeNumber: this.config.challengeNumber, letterNumber: this.config.letterNumber },
         hooks: {
           canPurchase: () => this.canPurchase(), beforePurchase: () => this.beforePurchase(), afterPurchase: () => this.afterPurchase(),
           beforeInviteStart: () => this.beforeInviteStart(), beforeInviteConfirm: () => this.beforeInviteConfirm(),

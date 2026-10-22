@@ -16,7 +16,7 @@ function invitationGame(options = {}) {
   class VirtualDate extends Date { static now() { return state.clock; } }
   const { T } = load(['core', 'ui', 'original-flow'], { Date: VirtualDate });
   const cfg = T.config({
-    challengeNumber: '1', letterNumber: '0', autoBuy: false,
+    challengeNumber: '1', letterNumber: '1',
     strategyOrder: '雷柯刻', deckPages: '1', diagnosticImages: false,
     ...(options.settings || {})
   });
@@ -139,7 +139,7 @@ for (const readyAfterDialogue of [false, true]) {
     assert.equal(result.wins, 2);
     assert.equal(game.state.selectedDifficulty, '友好对局');
     assert.deepEqual(game.state.engineCalls, ['raiden', 'raiden']);
-    assert.equal(game.state.purchases, 0, 'zero letters with auto-buy disabled must not visit/submit the purchase route');
+    assert.equal(game.state.purchases, 0, 'one available letter/already invited character covers the original first round');
     const confirmation = game.state.trace.findIndex(e => e.kind === 'invite-confirmed');
     const deckSelected = game.state.trace.findIndex(e => e.kind === 'deck-selected');
     const opening = game.state.trace.findIndex(e => e.kind === 'opening');
@@ -155,7 +155,7 @@ for (const readyAfterDialogue of [false, true]) {
 test('confirmed loss changes strategy without another purchase; post-game dialogue cannot auto-start a match', async () => {
   const game = invitationGame({
     results: ['lose', 'win', 'win'], postReadyOverlay: true,
-    settings: { strategyOrder: '雷柯刻,伊嘉早', letterNumber: '0', autoBuy: false }
+    settings: { strategyOrder: '雷柯刻,伊嘉早', letterNumber: '1' }
   });
   const result = await game.flow.run();
   assert.equal(result.played, 3); assert.equal(result.wins, 2);
@@ -166,10 +166,10 @@ test('confirmed loss changes strategy without another purchase; post-game dialog
   assert.equal(game.report.events.filter(e => e.type === 'purchase-submitted').length, 0);
 });
 
-test('explicit auto-buy retains original zero-letter purchase schedule, outside all strategy retries', async () => {
+test('zero held letters follows original purchase schedule; a saved obsolete autoBuy=false cannot disable it', async () => {
   const game = invitationGame({
     results: ['lose', 'win', 'win'],
-    settings: { strategyOrder: '雷柯刻,伊嘉早', letterNumber: '0', autoBuy: true }
+    settings: { strategyOrder: '雷柯刻,伊嘉早', letterNumber: '0', autoBuy: false }
   });
   const result = await game.flow.run();
   assert.equal(result.played, 3);
@@ -193,7 +193,7 @@ test('an opening reached without any observed deck selection stops before invoki
 test('loss followed by unavailable fallback decks stops on preparation rather than walking into the next leg', async () => {
   const game = invitationGame({
     results: ['lose'],
-    settings: { strategyOrder: '雷柯刻,月绽放', letterNumber: '0', autoBuy: false }
+    settings: { strategyOrder: '雷柯刻,月绽放', letterNumber: '1' }
   });
   await assert.rejects(game.flow.run(), error => error.code === 'EXHAUSTED' && error.details.played === 1);
   assert.deepEqual(game.state.engineCalls, ['raiden']);

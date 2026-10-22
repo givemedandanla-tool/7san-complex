@@ -1,7 +1,6 @@
 [
   { "name": "challengeNumber", "type": "input-text", "label": "挑战人数（沿用原版：每轮执行两段对局）", "default": "1" },
-  { "name": "letterNumber", "type": "input-text", "label": "持有邀请函数量（0＝持有零张；已邀请角色也算；只有开启自动购函才会购买）", "default": "0" },
-  { "name": "autoBuy", "type": "checkbox", "label": "自动购函（默认关闭；开启后才按原版数量不足时购买 1 张）", "default": false },
+  { "name": "letterNumber", "type": "input-text", "label": "持有邀請函數量（已邀請角色也算）", "default": "0" },
   { "name": "strategyOrder", "type": "input-text", "label": "策略应用顺序，逗号分隔；只填已准备的策略：雷柯刻、伊嘉早、月绽放、莫早卢、原固定策略", "default": "雷柯刻,伊嘉早,月绽放,莫早卢" },
   { "name": "raidenDeck", "type": "input-text", "label": "雷柯刻的游戏牌组名称（雷电将军／柯莱／刻晴）", "default": "雷柯刻" },
   { "name": "iansanDeck", "type": "input-text", "label": "伊嘉早的游戏牌组名称（伊安珊／嘉明／早柚）", "default": "伊嘉早" },
@@ -9,7 +8,7 @@
   { "name": "mozailuDeck", "type": "input-text", "label": "莫早卢的游戏牌组名称（莫娜／早柚／迪卢克）", "default": "莫早卢" },
   { "name": "builtinDeck", "type": "input-text", "label": "原固定策略对应的游戏牌组名称（先在 BetterGI 七圣设置中选好文字策略）", "default": "原牌组" },
   { "name": "deckPages", "type": "input-text", "label": "牌组查找页数（建议把要用的牌组放第一页）", "default": "2" },
-  { "name": "maxMinutes", "type": "select", "label": "智能牌手单局时限（分钟）", "options": ["10", "15", "20"], "default": "15" },
+  { "name": "maxMinutes", "type": "input-text", "label": "智能牌手單局超時（分鐘，例如 120）", "default": "15" },
   { "name": "mulligan", "type": "select", "label": "四套智能牌手的起手处理", "options": ["全部保留", "优先装备与启动牌"], "default": "全部保留" },
   { "name": "diagnosticImages", "type": "checkbox", "label": "异常时在本地 data/ 保存现场截图", "default": true }
 ]

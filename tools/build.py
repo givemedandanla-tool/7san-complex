@@ -39,7 +39,6 @@ def original_factory(code):
     assert declarations.count(dialogue_loop) == 1
     declarations = declarations.replace(dialogue_loop, dialogue_loop + "    if (await hooks.dialogueStep()) return;\n", 1)
     assert main.count("if (letterNumber <= i)") == 1
-    main = main.replace("if (letterNumber <= i)", "if (settings.autoBuy === true && letterNumber <= i)", 1)
     pair = "await chooseCharacter();\n   await Playcards();"
     assert main.count(pair) == 2
     for leg in [1, 2]:
@@ -110,7 +109,12 @@ def player_factory(code, identity):
     return {{
       describe() {{return {{team: TCG.team.map(c=>c.name), version: TCG.version, sharedVersion: TCG.sharedVersion}};}},
       session() {{
-        const options = TCGPlayer.playerOptions(settings);
+        const maxMinutes = Number(settings?.maxMinutes == null || settings.maxMinutes === "" ? 15 : settings.maxMinutes);
+        if (!Number.isSafeInteger(maxMinutes) || maxMinutes < 1 || maxMinutes > Math.floor(Number.MAX_SAFE_INTEGER / 60000))
+          throw new Error("单局时间必须是可安全换算为毫秒的正整数分钟");
+        // Keep upstream validation for all other settings; its menu-only minute whitelist is adapted here.
+        const options = TCGPlayer.playerOptions(Object.assign({{}}, settings, {{maxMinutes: "15"}}));
+        options.maxMinutes = maxMinutes;
         const {{Host, Player}} = TCGHandRecognition.classes(globalThis,
           JSON.parse(file.readTextSync("hand-bank.json")), JSON.parse(file.readTextSync("opening-bank.json")));
         return {{Host, Player, options}};

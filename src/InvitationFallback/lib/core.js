@@ -42,8 +42,7 @@
       if (!deck) throw new TrialError("CONFIG", "请填写「" + recipe.title + "」的游戏牌组名");
       return Object.assign({}, recipe, { deck });
     });
-    const maxMinutes = integer(s.maxMinutes, 15, 10, 20, "单局时间");
-    if (![10, 15, 20].includes(maxMinutes)) throw new TrialError("CONFIG", "单局时间只能选择 10、15 或 20 分钟");
+    const maxMinutes = integer(s.maxMinutes, 15, 1, Math.floor(Number.MAX_SAFE_INTEGER / 60000), "单局超时分钟数");
     if (s.mulligan && !["全部保留", "优先装备与启动牌"].includes(s.mulligan)) throw new TrialError("CONFIG", "未知的起手处理选项");
     return {
       queue,
@@ -52,7 +51,6 @@
       deckPages: integer(s.deckPages, 2, 1, 5, "牌组查找页数"),
       mulligan: s.mulligan || "全部保留",
       letterNumber: integer(s.letterNumber, 0, 0, 99, "现有邀请函数量"),
-      autoBuy: s.autoBuy === true,
       diagnosticImages: s.diagnosticImages !== false
     };
   }

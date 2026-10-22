@@ -67,10 +67,13 @@ test('all four real generated factories load their own banks and leave host glob
   for (const name of ['TCGPlayer', 'TCGBetterGI', 'TCGHandRecognition', 'TCGMoonCatalog', 'TCGMoonUI']) assert.equal(context[name], undefined);
 });
 
-test('configuration refuses unknown/repeated strategies and unsupported per-game time', () => {
+test('configuration accepts manual positive minutes and refuses invalid time or strategy settings', () => {
   assert.throws(() => T.config({ strategyOrder: '假的策略' }), e => e.code === 'CONFIG');
   assert.throws(() => T.config({ strategyOrder: '雷柯刻,raiden' }), e => e.code === 'CONFIG');
-  assert.throws(() => T.config({ maxMinutes: '11' }), e => e.code === 'CONFIG');
+  assert.equal(T.config({ maxMinutes: '11' }).maxMinutes, 11);
+  assert.equal(T.config({ maxMinutes: '120' }).maxMinutes, 120);
+  for (const maxMinutes of ['0', '-1', '1.5', 'abc', 'Infinity', Number.MAX_SAFE_INTEGER])
+    assert.throws(() => T.config({ maxMinutes }), e => e.code === 'CONFIG');
   assert.throws(() => T.config({ strategyOrder: '  ' }), e => e.code === 'CONFIG');
   assert.equal(T.config({}).queue[1].id, 'iansan');
 });

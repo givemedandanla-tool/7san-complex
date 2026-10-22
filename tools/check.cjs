@@ -28,10 +28,11 @@ assert.equal(manifest.version, JSON.parse(fs.readFileSync(path.join(root, 'packa
 assert(fs.existsSync(path.join(pkg, manifest.main))); assert(fs.existsSync(path.join(pkg, manifest.settings_ui)));
 assert(fs.existsSync(path.join(pkg, 'lib/original-navigation.js')));
 const settings = JSON.parse(fs.readFileSync(path.join(pkg, manifest.settings_ui)));
-for (const key of ['challengeNumber', 'letterNumber', 'autoBuy', 'strategyOrder', 'raidenDeck', 'iansanDeck', 'moonbloomDeck', 'mozailuDeck'])
+for (const key of ['challengeNumber', 'letterNumber', 'maxMinutes', 'strategyOrder', 'raidenDeck', 'iansanDeck', 'moonbloomDeck', 'mozailuDeck'])
   assert(settings.some(s => s.name === key), 'missing original/integration setting: ' + key);
-for (const key of ['runMode', 'targetName', 'difficulty', 'maxMatches'])
+for (const key of ['runMode', 'targetName', 'difficulty', 'maxMatches', 'autoBuy'])
   assert(!settings.some(s => s.name === key), 'obsolete single-target setting: ' + key);
-assert.equal(settings.find(s => s.name === 'autoBuy').default, false);
+assert.equal(settings.find(s => s.name === 'letterNumber').label, '持有邀請函數量（已邀請角色也算）');
+assert.equal(settings.find(s => s.name === 'maxMinutes').type, 'input-text');
 assert.equal(manifest.http_allowed_urls, undefined);
 console.log(`Validated JSON/JS, ${Object.keys(hashes).length} file hashes, four atlas banks, original module preservation, and package entry.`);
