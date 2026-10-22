@@ -62,6 +62,8 @@
          screen.matches(["出战角色", "重投", "重投骰子", "确认重投"], null, false).length > 0);
     }
     verifyOpponent(context, screen, requireVisible) {
+      // Original mode owns character/tab selection. Its panel is checked once after each selection.
+      if (context.originalRoute && context.verified) return;
       const found = screen.matches([context.name], this.region("opponent"), true);
       if (found.length) {
         context.verified = true;
@@ -71,6 +73,19 @@
       // A preparation page can omit the NPC name; accept it only after this same session observed that NPC.
       if (!requireVisible && context.verified) return;
       throw new T.TrialError("OPPONENT_UNVERIFIED", "未在画面中确认对手「" + context.name + "」。请从显示该角色名称的邀约详情页启动，或调整 ui-profile.json 的 opponent 区域");
+    }
+    verifyOriginalSelection(context) {
+      const screen = this.read();
+      if (!this.isReady(screen)) throw new T.TrialError("UI", "原版选角后未识别到出战牌组区域；已停止，未开始对局");
+      const signature = screen.rowsAt(this.region("invitationIdentity")).map(r => T.norm(r.text)).filter(Boolean).sort().join("|");
+      if (context.selectionSeen && (!signature || signature !== context.signature))
+        throw new T.TrialError("OPPONENT_UNVERIFIED", "败北重开后邀约详情与上一局不一致或无法辨识，停止换策略");
+      context.signature = signature;
+      context.selectionSeen = true;
+      context.originalRoute = true;
+      context.verified = true;
+      context.difficultySelected = true;
+      this.report.event("original-selection", { round: context.round, leg: context.leg, signature });
     }
     async wait(check, label, timeout) {
       const end = Date.now() + (timeout || this.profile.timeoutMs);

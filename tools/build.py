@@ -12,6 +12,67 @@ IDS = {"raiden": "RaidenColleiKeqingPlayer", "iansan": "IansanGamingSayuPlayer",
        "moonbloom": "MoonbloomPlayer", "mozailu": "MonaSayuDilucPlayer"}
 
 
+def original_factory(code):
+    """Keep the pinned route and outer loop, inserting only explicit integration hooks."""
+    code = code.replace("\r\n", "\n")
+    assert code.startswith("(async function () {") and code.rstrip().endswith("})();")
+    body = code[len("(async function () {"):].rstrip()[:-len("})();")]
+    declarations, main = body.split("//主流程\n")
+    # Split chooseCharacter at the original start click to select a named deck first.
+    declarations = declarations.replace("async function chooseCharacter() {", "async function selectCharacter() {", 1)
+    start = "click(1443, 875);//开始"
+    assert declarations.count(start) == 1
+    declarations = declarations.replace(start, "}\nasync function startChallenge() {\n" + start, 1)
+    native = 'await dispatcher.runTask(new SoloTask("AutoGeniusInvokation"));'
+    assert declarations.count(native) == 1
+    declarations = declarations.replace(native, "const result = await hooks.play();", 1)
+    cleanup = "await autoConversation();\n    }\n"
+    assert declarations.count(cleanup) == 1
+    declarations = declarations.replace(cleanup, "await autoConversation();\nreturn result;\n    }\n", 1)
+    declarations = declarations.replace("async function BuyLetter(){", "async function BuyLetter(){\nawait hooks.canPurchase();", 1)
+    submit = "click(1185,755 );//点击购买\nawait sleep(1000);"
+    assert declarations.count(submit) == 1
+    declarations = declarations.replace(submit, "await hooks.beforePurchase();\n" + submit + "\nawait hooks.afterPurchase();", 1)
+    pair = "await chooseCharacter();\n   await Playcards();"
+    assert main.count(pair) == 2
+    for leg in [1, 2]:
+        main = main.replace(pair, f"await hooks.challenge(selectCharacter, startChallenge, Playcards, {{round: i + 1, leg: {leg}}});", 1)
+    finished = "log.info(`完成挑战第${i+1}次`);"
+    assert main.count(finished) == 1
+    main = main.replace(finished, finished + "\n   await hooks.roundFinished(i + 1);", 1)
+    return '''// Generated from the pinned original invitation script; see upstream-invitation/main.js.
+// Route coordinates, dialogue, result cleanup and outer-loop order are inherited from that source.
+(function createOriginalNavigation(bindings) {
+  "use strict";
+  const {settings, hooks, genshin, log, captureGameRegion, keyPress, click, sleep} = bindings;
+  const mats = new Map();
+  const held = new Set();
+  const keyDown = key => { held.add(key); bindings.keyDown(key); };
+  const keyUp = key => { bindings.keyUp(key); held.delete(key); };
+  const file = {ReadImageMatSync(path) {
+    if (!mats.has(path)) mats.set(path, bindings.file.readImageMatSync(path));
+    return mats.get(path);
+  }};
+  const RecognitionObject = {
+    ocr: (...args) => bindings.RecognitionObject.ocr(...args),
+    TemplateMatch: (...args) => bindings.RecognitionObject.templateMatch(...args)
+  };
+''' + declarations + '''
+  return {
+    async run() {
+''' + main + '''
+    },
+    dispose() {
+      for (const key of held) bindings.keyUp(key);
+      held.clear();
+      for (const mat of mats.values()) mat.dispose();
+      mats.clear();
+    }
+  };
+})
+'''
+
+
 def player_factory(code, identity):
     marker = "// @tcg-entry"
     if code.count(marker) != 1:
@@ -69,6 +130,12 @@ def main():
     if output.exists():
         shutil.rmtree(output)
     shutil.copytree(ROOT / "src/InvitationFallback", output)
+    instructions = (output / "README.md").read_text(encoding="utf-8")
+    for identity, folder in IDS.items():
+        instructions = instructions.replace(f"../../vendor/players/{folder}/README.md", f"engines/{identity}/README.md")
+    (output / "README.md").write_text(instructions, encoding="utf-8")
+    original = (ROOT / "vendor/invitation/main.js").read_text(encoding="utf-8")
+    (output / "lib/original-navigation.js").write_text(original_factory(original), encoding="utf-8")
     shutil.copy2(ROOT / "LICENSE", output / "LICENSE-GPL-3.0.txt")
     shutil.copytree(ROOT / "vendor/invitation/assets", output / "assets")
     shutil.copytree(ROOT / "vendor/invitation", output / "upstream-invitation")
@@ -83,7 +150,8 @@ def main():
         if path.is_file():
             files[path.relative_to(output).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
     (output / "PACKAGE_SHA256.json").write_text(json.dumps(files, ensure_ascii=False, indent=2) + "\n")
-    archive = ROOT / "dist/InvitationFallback-0.1.0.zip"
+    version = json.loads((output / "manifest.json").read_text())["version"]
+    archive = ROOT / f"dist/InvitationFallback-{version}.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for path in sorted(output.rglob("*")):
             if not path.is_file():

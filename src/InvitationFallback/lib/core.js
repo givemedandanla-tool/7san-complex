@@ -1,11 +1,6 @@
 (function (root) {
   "use strict";
   const T = root.InvitationTrial = root.InvitationTrial || {};
-  const MODES = {
-    ready: "已选对手（换牌组重打）",
-    opening: "初始手牌（只测一局）",
-    legacy: "原邀约导航（实验）"
-  };
   const RECIPES = [
     { id: "raiden", title: "雷柯刻", folder: "RaidenColleiKeqingPlayer", field: "raidenDeck", team: ["雷电将军", "柯莱", "刻晴"] },
     { id: "iansan", title: "伊嘉早", folder: "IansanGamingSayuPlayer", field: "iansanDeck", team: ["伊安珊", "嘉明", "早柚"] },
@@ -35,9 +30,8 @@
     return n;
   }
   function config(raw) {
-    const s = raw || {}, mode = s.runMode || MODES.ready;
-    if (!Object.values(MODES).includes(mode)) throw new TrialError("CONFIG", "未知运行模式");
-    const order = String(s.strategyOrder || "雷柯刻,伊嘉早").split(/[,，;；\n]+/).map(x => x.trim()).filter(Boolean);
+    const s = raw || {};
+    const order = String(s.strategyOrder == null ? "雷柯刻,伊嘉早,月绽放,莫早卢" : s.strategyOrder).split(/[,，;；\n]+/).map(x => x.trim()).filter(Boolean);
     if (!order.length) throw new TrialError("CONFIG", "请填写至少一个策略");
     const seen = new Set(), queue = order.map(name => {
       const recipe = RECIPES.find(r => norm(r.title) === norm(name) || r.id === name);
@@ -45,24 +39,19 @@
       if (seen.has(recipe.id)) throw new TrialError("CONFIG", "策略顺序重复：" + recipe.title);
       seen.add(recipe.id);
       const deck = String(s[recipe.field] == null ? (recipe.id === "builtin" ? "原牌组" : recipe.title) : s[recipe.field]).trim();
-      if (!deck && mode !== MODES.opening) throw new TrialError("CONFIG", "请填写「" + recipe.title + "」的游戏牌组名");
+      if (!deck) throw new TrialError("CONFIG", "请填写「" + recipe.title + "」的游戏牌组名");
       return Object.assign({}, recipe, { deck });
     });
-    const targetName = String(s.targetName || "").trim();
-    if (mode !== MODES.opening && norm(targetName).length < 2) throw new TrialError("CONFIG", "请填写本次邀约对手的简体中文全名，例如迪卢克");
-    const difficulty = s.difficulty || "友好对局";
-    if (!["友好对局", "认真胜负"].includes(difficulty)) throw new TrialError("CONFIG", "难度必须是友好对局或认真胜负");
     const maxMinutes = integer(s.maxMinutes, 15, 10, 20, "单局时间");
     if (![10, 15, 20].includes(maxMinutes)) throw new TrialError("CONFIG", "单局时间只能选择 10、15 或 20 分钟");
     if (s.mulligan && !["全部保留", "优先装备与启动牌"].includes(s.mulligan)) throw new TrialError("CONFIG", "未知的起手处理选项");
     return {
-      mode, queue, targetName, difficulty,
-      maxMatches: integer(s.maxMatches, 3, 1, 10, "最多对局数"),
+      queue,
+      challengeNumber: integer(s.challengeNumber, 1, 1, 99, "挑战人数"),
       maxMinutes,
       deckPages: integer(s.deckPages, 2, 1, 5, "牌组查找页数"),
       mulligan: s.mulligan || "全部保留",
       letterNumber: integer(s.letterNumber, 1, 0, 99, "现有邀请函数量"),
-      autoBuy: s.autoBuy === true,
       diagnosticImages: s.diagnosticImages !== false
     };
   }
@@ -124,5 +113,5 @@
     if (!result) throw new TrialError("RESULT_UNKNOWN", "牌手未确认胜败便结束（可能已在结算页或入口不正确）");
     return result;
   }
-  Object.assign(T, { MODES, RECIPES, TrialError, norm, list, integer, config, classifyResult, runAttempts, relativePath, scopedFile, runPlayer });
+  Object.assign(T, { RECIPES, TrialError, norm, list, integer, config, classifyResult, runAttempts, relativePath, scopedFile, runPlayer });
 })(globalThis);

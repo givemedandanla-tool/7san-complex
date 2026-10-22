@@ -68,8 +68,9 @@ test('all four real generated factories load their own banks and leave host glob
 });
 
 test('configuration refuses unknown/repeated strategies and unsupported per-game time', () => {
-  assert.throws(() => T.config({ targetName: '迪卢克', strategyOrder: '假的策略' }), e => e.code === 'CONFIG');
-  assert.throws(() => T.config({ targetName: '迪卢克', strategyOrder: '雷柯刻,raiden' }), e => e.code === 'CONFIG');
-  assert.throws(() => T.config({ targetName: '迪卢克', maxMinutes: '11' }), e => e.code === 'CONFIG');
-  assert.equal(T.config({ targetName: '迪卢克' }).queue[1].id, 'iansan');
+  assert.throws(() => T.config({ strategyOrder: '假的策略' }), e => e.code === 'CONFIG');
+  assert.throws(() => T.config({ strategyOrder: '雷柯刻,raiden' }), e => e.code === 'CONFIG');
+  assert.throws(() => T.config({ maxMinutes: '11' }), e => e.code === 'CONFIG');
+  assert.throws(() => T.config({ strategyOrder: '  ' }), e => e.code === 'CONFIG');
+  assert.equal(T.config({}).queue[1].id, 'iansan');
 });

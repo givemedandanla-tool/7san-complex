@@ -60,7 +60,7 @@ test('failed identity verification on reopen prevents the next deck and game', a
   assert.deepEqual(prepared, ['raiden']);
 });
 
-test('all losses remain incomplete; the original outer loop receives an exception', async () => {
+test('all losses produce an explicit incomplete outcome for the outer driver to handle', async () => {
   const outcomes = [];
   await assert.rejects(T.runAttempts(queue.slice(0, 2), 5, {
     prepare: async () => {}, play: async () => 'lose', reopen: async () => {}, record: async r => outcomes.push(r.outcome)

@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { load, row, screen, profile } = require('./helpers.cjs');
-const { T } = load(['core', 'ui', 'legacy']);
+const { T } = load(['core', 'ui', 'original-flow']);
 
 function game() {
   const state = { page: 'ready', deck: '雷柯刻', pending: null, clicks: [], keys: [], captured: 0, disposed: 0 };
@@ -97,8 +97,8 @@ test('result classification rejects an ambiguous page', () => {
 test('pending unverified purchase blocks a second submission before any key or click', async () => {
   let actions = 0;
   const h = { file: { isExists: () => true, readTextSync: () => '{"pending":true}' }, click: () => actions++, keyDown: () => actions++ };
-  const legacy = new T.Legacy({ h }, { letterNumber: 0, autoBuy: true }, { event() {} });
-  await assert.rejects(legacy.buyLetter(), e => e.code === 'PURCHASE_PENDING');
+  const flow = new T.OriginalFlow({ h, checkCancelled() {} }, {}, {}, { event() {} }, {});
+  await assert.rejects(flow.canPurchase(), e => e.code === 'PURCHASE_PENDING');
   assert.equal(actions, 0);
 });
 
@@ -119,8 +119,47 @@ test('unverified purchase quantity and an unwritable journal cannot submit a pur
     const before = screen(T, [row('邀请函'), row('购买'), row(scenario === 'quantity' ? '2' : '1', 900, 600)]);
     const ui = { h, pause: async () => {}, checkCancelled() {}, read: () => before,
       region: () => [850, 550, 220, 140] };
-    const legacy = new T.Legacy(ui, { letterNumber: 0, autoBuy: true }, { event() {} });
-    await assert.rejects(legacy.buyLetter(), e => e.code === (scenario === 'quantity' ? 'PURCHASE_QUANTITY' : 'PURCHASE_JOURNAL'));
+    const flow = new T.OriginalFlow(ui, {}, {}, { event() {} }, {});
+    await assert.rejects(flow.beforePurchase(), e => e.code === (scenario === 'quantity' ? 'PURCHASE_QUANTITY' : 'PURCHASE_JOURNAL'));
     assert.equal(clicks.some(([x, y]) => x === 1185 && y === 755), false);
   }
+});
+
+test('original selection records its panel without a typed name; changed/empty retry panels stop', () => {
+  const { state, ui } = game();
+  const context = { round: 1, leg: 1 };
+  ui.verifyOriginalSelection(context);
+  assert.equal(context.originalRoute, true);
+  ui.verifyOpponent(context, ui.read(), true);
+  ui.verifyOriginalSelection(context);
+  const original = ui.read.bind(ui);
+  ui.read = () => screen(T, [row('凯亚', 1400, 220), row('我方出战牌组', 1240, 700)]);
+  assert.throws(() => ui.verifyOriginalSelection(context), e => e.code === 'OPPONENT_UNVERIFIED');
+  ui.read = () => screen(T, [row('我方出战牌组', 1240, 700)]);
+  assert.throws(() => ui.verifyOriginalSelection(context), e => e.code === 'OPPONENT_UNVERIFIED');
+  ui.read = original;
+  assert.equal(state.clicks.length, 0);
+});
+
+test('original-flow challenge uses actual OCR deck selection without target input, exits a loss, changes deck and exits victory', async () => {
+  const { state, ui, report, h } = game();
+  const cfg = T.config({ strategyOrder: '雷柯刻,伊嘉早' });
+  const strategies = [], selectionPages = [];
+  const engines = { async run(recipe) {
+    strategies.push(recipe.id);
+    state.page = recipe.id === 'raiden' ? 'lose' : 'win';
+    return state.page;
+  } };
+  const flow = new T.OriginalFlow(ui, cfg, engines, report, { info() {}, warn() {} });
+  const result = await flow.challenge(
+    async () => { selectionPages.push(state.page); state.page = 'ready'; },
+    async () => { assert.equal(state.page, 'ready'); state.page = 'opening'; },
+    async () => { const outcome = await flow.play(); await ui.leaveResult(); return outcome; },
+    { round: 1, leg: 1 }
+  );
+  assert.equal(result.outcome, 'win'); assert.equal(result.played, 2);
+  assert.deepEqual(strategies, ['raiden', 'iansan']);
+  assert.deepEqual(selectionPages, ['ready', 'world']);
+  assert.equal(state.deck, '伊嘉早'); assert.equal(state.page, 'world');
+  assert.equal(state.captured, state.disposed);
 });
