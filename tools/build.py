@@ -21,10 +21,10 @@ def original_factory(code):
     # Do not split the original invitation flow or assume it is already the deck preparation page.
     start = "click(1443, 875);//开始"
     assert declarations.count(start) == 1
-    declarations = declarations.replace(start, "await hooks.beforeInviteStart();\n" + start, 1)
+    declarations = declarations.replace(start, "if (!await hooks.beforeInviteStart()) " + start, 1)
     confirm = "click(1175, 754);//确认"
     assert declarations.count(confirm) == 1
-    declarations = declarations.replace(confirm, "await hooks.beforeInviteConfirm();\n" + confirm, 1)
+    declarations = declarations.replace(confirm, "if (!await hooks.beforeInviteConfirm()) " + confirm, 1)
     native = 'await dispatcher.runTask(new SoloTask("AutoGeniusInvokation"));'
     assert declarations.count(native) == 1
     declarations = declarations.replace(native, "const result = await hooks.play();", 1)
@@ -38,6 +38,9 @@ def original_factory(code):
     dialogue_loop = "while (talkTime < 30) {\n"
     assert declarations.count(dialogue_loop) == 1
     declarations = declarations.replace(dialogue_loop, dialogue_loop + '    if (await hooks.dialogueStep("dialogue-poll")) return;\n', 1)
+    dialogue_entry = "async function autoConversation() {\n"
+    assert declarations.count(dialogue_entry) == 1
+    declarations = declarations.replace(dialogue_entry, dialogue_entry + '    if (await hooks.dialogueStep("dialogue-entry")) return;\n', 1)
     # A page can change after either 300ms pause. Observe again before each key;
     # especially do not send the following F to a newly appeared preparation page.
     for key, stage in [("VK_SPACE", "before-dialogue-space"), ("F", "before-dialogue-f")]:

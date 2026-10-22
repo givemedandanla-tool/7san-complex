@@ -1,6 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { load, row, profile } = require('./helpers.cjs');
+const reportedDialogue = require('./fixtures/invitation-dialogue-0.4.2.json');
 
 function localPage(rows, probes, deck = '刻晴队') {
   const { T } = load(['core', 'ui']);
@@ -60,4 +61,12 @@ test('local probes cannot turn an actual initial hand into a deck preparation pa
   assert.equal(ui.isOpening(screen), true);
   assert.equal(ui.isReady(screen), false);
   assert.equal(state.requests.length, 0, 'only the full-frame OCR is needed at the opening');
+});
+
+test('the reported top-right current deck is an invitation dialogue, independent of weekly preparation labels', () => {
+  const { ui, screen } = localPage(reportedDialogue.dialogue, {});
+  assert.equal(ui.isInvitationDialogue(screen), true);
+  assert.equal(ui.isReady(screen), false);
+  assert.equal(ui.isOpening(screen), false);
+  assert.equal(ui.invitationDeckRows(screen, '我的牌组').length, 1);
 });

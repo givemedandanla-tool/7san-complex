@@ -1,0 +1,67 @@
+{
+  "source": "Selected UI rows from the reported 0.4.2 failure; UID and player identity excluded.",
+  "arrival": [
+    {
+      "text": "迪希雅受邀前来进行牌局··",
+      "x": 731,
+      "y": 506,
+      "width": 456,
+      "height": 35
+    }
+  ],
+  "dialogue": [
+    {
+      "text": "当前牌组：",
+      "x": 1640,
+      "y": 38,
+      "width": 113,
+      "height": 29
+    },
+    {
+      "text": "：我的牌组",
+      "x": 1740,
+      "y": 36,
+      "width": 113,
+      "height": 34
+    }
+  ],
+  "accepted": [
+    {
+      "text": "当前牌组：",
+      "x": 1640,
+      "y": 37,
+      "width": 111,
+      "height": 30
+    },
+    {
+      "text": "我的牌组",
+      "x": 1752,
+      "y": 38,
+      "width": 97,
+      "height": 29
+    },
+    {
+      "text": "行啊，让我看看你的牌技如何。",
+      "x": 748,
+      "y": 909,
+      "width": 411,
+      "height": 35
+    }
+  ],
+  "opening": [
+    {
+      "text": "初始手牌",
+      "x": 843,
+      "y": 170,
+      "width": 233,
+      "height": 64
+    },
+    {
+      "text": "请选择要替换的手牌",
+      "x": 852,
+      "y": 238,
+      "width": 219,
+      "height": 29
+    }
+  ]
+}

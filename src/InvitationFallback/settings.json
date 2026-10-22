@@ -7,7 +7,7 @@
   { "name": "moonbloomDeck", "type": "input-text", "label": "月绽放的游戏牌组名称（菈乌玛／哥伦比娅／奈芙尔）", "default": "月绽放" },
   { "name": "mozailuDeck", "type": "input-text", "label": "莫早卢的游戏牌组名称（莫娜／早柚／迪卢克）", "default": "莫早卢" },
   { "name": "builtinDeck", "type": "input-text", "label": "原固定策略对应的游戏牌组名称（先在 BetterGI 七圣设置中选好文字策略）", "default": "原牌组" },
-  { "name": "deckPages", "type": "input-text", "label": "牌组查找页数（建议把要用的牌组放第一页）", "default": "2" },
+  { "name": "deckPages", "type": "input-text", "label": "牌组查找页数（从最左开始，小幅拖动逐段查找）", "default": "2" },
   { "name": "maxMinutes", "type": "input-text", "label": "智能牌手單局超時（分鐘，例如 120）", "default": "15" },
   { "name": "mulligan", "type": "select", "label": "四套智能牌手的起手处理", "options": ["全部保留", "优先装备与启动牌"], "default": "全部保留" },
   { "name": "diagnosticImages", "type": "checkbox", "label": "异常时在本地 data/ 保存现场截图", "default": true }

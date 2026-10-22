@@ -36,13 +36,16 @@
     async prepareDeckIfReady(screen) {
       if (!this.attempt || !this.attempt.preGame) return false;
       screen = screen || this.ui.read();
-      if (!this.ui.isReady(screen)) return false;
+      const dialogue = Boolean(this.ui.isInvitationDialogue?.(screen));
+      if (!this.ui.isReady(screen) && !dialogue) return false;
       if (this.attempt.prepared) return true;
       while (this.active.cursor < this.config.queue.length) {
         this.recipe = this.config.queue[this.active.cursor];
         try {
-          await this.ui.selectDeck(this.recipe, this.active.context);
+          if (dialogue) await this.ui.selectInvitationDeck(this.recipe, this.active.context);
+          else await this.ui.selectDeck(this.recipe, this.active.context);
           this.attempt.prepared = true;
+          this.attempt.entry = dialogue ? "invitation-dialogue" : "ready";
           this.log.info("[出战牌组] 「" + this.recipe.deck + "」，策略「" + this.recipe.title + "」");
           return true;
         } catch (error) {
@@ -58,9 +61,35 @@
       // This is still the original invitation page in many game states, including a locked serious tab.
       // Observe it without requiring it to be the later deck preparation page.
       this.ui.verifyOriginalSelection(this.active.context, screen);
+      if (this.ui.isInvitationDialogue?.(screen)) { await this.beginInvitationDialogue(screen); return true; }
       await this.prepareDeckIfReady(screen);
+      return false;
     }
-    async beforeInviteConfirm() { await this.prepareDeckIfReady(this.ui.read("before-invite-confirm")); }
+    async beforeInviteConfirm() {
+      let screen = this.ui.read("before-invite-confirm");
+      // The reported "confirmation" frame is an arrival transition, not a confirmed modal.
+      // Do not send its old fixed click into the dialogue that appears during that transition.
+      if (screen.has?.("受邀前来进行牌局")) {
+        screen = await this.ui.wait(s => !s.has("受邀前来进行牌局") &&
+          (this.ui.isInvitationDialogue(s) || this.ui.isReady(s) || this.ui.isOpening(s) ||
+           s.matches(["确认"], this.ui.region("confirm"), false).length) ? s : false,
+          "等待受邀角色进场后确认实际页面", 15000);
+        this.ui.read("after-invite-arrival");
+      }
+      if (this.attempt.started && this.attempt.entry === "invitation-dialogue") return true;
+      if (this.ui.isOpening?.(screen)) { this.requirePreparedDeck(); return true; }
+      if (this.ui.isInvitationDialogue?.(screen)) { await this.beginInvitationDialogue(screen); return true; }
+      await this.prepareDeckIfReady(screen);
+      return false;
+    }
+    async beginInvitationDialogue(screen) {
+      await this.prepareDeckIfReady(screen);
+      this.requirePreparedDeck();
+      if (!this.attempt.started) {
+        await this.ui.startInvitationMatch(this.recipe, this.active.context);
+        this.attempt.started = true;
+      }
+    }
     requirePreparedDeck() {
       if (!this.attempt || !this.attempt.prepared)
         throw new T.TrialError("DECK_SELECTION_TOO_LATE", "已识别到牌桌开局标记，但未确认选好牌组；已停止。请提供 data/before-invite-start.json、before-invite-confirm.json 与 last-error.json");
@@ -69,6 +98,10 @@
       // This hook must stay inactive during the original post-game dialogue.
       if (!this.attempt || !this.attempt.preGame) return false;
       screen = screen || this.ui.read(stage);
+      if (!this.attempt.started && this.ui.isInvitationDialogue?.(screen)) {
+        await this.beginInvitationDialogue(screen);
+        screen = this.ui.read("after-invite-play");
+      }
       if (this.ui.isReady(screen)) {
         await this.prepareDeckIfReady(screen);
         await this.ui.startMatch(this.recipe, this.active.context);
@@ -98,8 +131,8 @@
         while (state.cursor < this.config.queue.length) {
           this.ui.checkCancelled();
           this.recipe = this.config.queue[state.cursor];
-          this.attempt = { preGame: true, prepared: false };
-          // Complete the original function, including both start/confirm clicks, in the original order.
+          this.attempt = { preGame: true, prepared: false, started: false };
+          // Keep the original route; substitute only a positively observed invitation dialogue.
           await chooseCharacter();
           const result = await playCards();
           if (result !== "win" && result !== "lose") throw new T.TrialError("RESULT_UNKNOWN", "没有确认胜败，停止换策略");

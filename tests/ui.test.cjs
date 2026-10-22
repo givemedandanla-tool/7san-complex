@@ -38,7 +38,7 @@ function game() {
     moveMouseTo() {}, leftButtonDown() {}, leftButtonUp() {}
   };
   const cfg = { deckPages: 1, diagnosticImages: false }, report = { events: [], event(...args) { this.events.push(args); } };
-  const p = profile(); p.pollMs = 1;
+  const p = profile(); p.pollMs = 1; p.deckSettleMs = 0;
   return { state, h, ui: new T.UI(h, cfg, p, report), report };
 }
 
@@ -108,6 +108,17 @@ test('cancellation before UI observation or click prevents all game input', asyn
   assert.throws(() => ui.read(), e => e.code === 'CANCELLED');
   await assert.rejects(ui.tap(row('确认'), 'test'), e => e.code === 'CANCELLED');
   assert.equal(state.clicks.length, 0); assert.equal(state.captured, 0);
+});
+
+test('cancellation during a held gallery drag always releases the mouse button', async () => {
+  const { state, ui } = game();
+  let held = false;
+  ui.h.cancellationToken = { isCancellationRequested: false };
+  ui.h.leftButtonDown = () => { held = true; };
+  ui.h.leftButtonUp = () => { held = false; };
+  ui.h.sleep = async () => { ui.h.cancellationToken.isCancellationRequested = true; };
+  await assert.rejects(ui.drag([100, 200, 1800, 200]), error => error.code === 'CANCELLED');
+  assert.equal(held, false); assert.equal(state.clicks.length, 0);
 });
 
 test('unverified purchase quantity and an unwritable journal cannot submit a purchase', async () => {

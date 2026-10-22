@@ -5,7 +5,7 @@
   eval(file.readTextSync("lib/engines.js"));
   eval(file.readTextSync("lib/original-flow.js"));
   const T = globalThis.InvitationTrial;
-  const scriptVersion = "0.4.2";
+  const scriptVersion = "0.4.3";
   let ui = null, outcome = "error", cancellation = null;
   file.createDirectory("data");
   const events = [];

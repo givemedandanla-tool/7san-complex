@@ -27,7 +27,7 @@
   class UI {
     constructor(host, configuration, profile, report) {
       this.h = host; this.config = configuration; this.profile = profile; this.report = report;
-      this.lastScreen = null; this.held = new Set(); this.talkTemplate = null;
+      this.lastScreen = null; this.held = new Set(); this.talkTemplate = null; this.deckListExpected = false;
     }
     checkCancelled() {
       const token = this.h.cancellationToken;
@@ -48,7 +48,8 @@
           const probes = this.lastScreen.probes;
           probes.prepare = this.probe(image, this.region("deckBadge"));
           probes.deck = this.probe(image, this.region("deckNameProbe") || [1305, 793, 206, 46]);
-          if (this.lastScreen.has("编辑牌组") || this.lastScreen.has("选择牌组") ||
+          probes.invitationDeck = this.probe(image, this.region("invitationDeckName") || [1740, 20, 175, 65]);
+          if (this.deckListExpected || this.lastScreen.has("编辑牌组") || this.lastScreen.has("选择牌组") ||
               this.lastScreen.matches(["选择"], this.region("select"), false).length) {
             probes.slots = (this.profile.deckNameSlots || [0, 1, 2, 3].map(i => [135 + 463 * i, 762, 230, 46]))
               .map(rect => this.probe(image, rect));
@@ -73,7 +74,8 @@
       if (!safe) return;
       const details = { at: new Date().toISOString(), stage: safe,
         page: { ready: this.isReady(screen), invitation: this.isInvitation(screen),
-          deckChooser: this.isDeckChooser(screen), opening: this.isOpening(screen) }, rows: screen.rows,
+          deckChooser: this.isDeckChooser(screen), invitationDialogue: this.isInvitationDialogue(screen),
+          opening: this.isOpening(screen) }, rows: screen.rows,
         probes: screen.probes || {} };
       this.report.event("ui-stage", details);
       const file = this.h.file;
@@ -110,11 +112,45 @@
       const probes = screen.probes || {};
       if (region === "deckBadge" && probes.deck)
         return deckText(probes.deck.text) === deckText(name) ? [probes.deck] : [];
-      if (region === "deckNames" && probes.slots) {
-        const local = probes.slots.filter(r => r && deckText(r.text) === deckText(name));
-        if (probes.slots.some(Boolean)) return local;
+      if (region === "deckNames") {
+        const found = this.chooserNames(screen).filter(r => deckText(r.text) === deckText(name));
+        return found.length ? found : (probes.slots || []).filter(r => r && deckText(r.text) === deckText(name));
       }
       return screen.rowsAt(this.region(region)).filter(r => deckText(r.text) === deckText(name));
+    }
+    invitationOption(screen, kind) {
+      const pattern = kind === "adjust" ? /^先(?:调整|調整)一下(?:卡组|卡組|牌组|牌組)/ :
+        /(?:进行|進行).*七[圣聖]召[唤喚].*(?:对局|對局)/;
+      const rows = screen.rowsAt(this.region("invitationDialogue") || this.region("dialogueOptions"))
+        .filter(r => pattern.test(T.norm(r.text)));
+      if (rows.length > 1) throw new T.TrialError("UI_AMBIGUOUS", "邀约对话出现多个相同选项，停止点击");
+      return rows[0] || null;
+    }
+    isInvitationDialogue(screen) {
+      if (this.openingMarker(screen) || this.result(screen) || screen.has("编辑牌组") || screen.has("更改牌组外观")) return false;
+      return Boolean(this.invitationOption(screen, "adjust") || this.invitationOption(screen, "play") ||
+        screen.rowsAt(this.region("invitationDeckHeader") || [1620, 20, 290, 70])
+          .some(r => /(?:当前|當前)(?:牌组|牌組|卡组|卡組)/.test(T.norm(r.text))));
+    }
+    invitationDeckRows(screen, name) {
+      const clean = text => deckText(String(text).replace(/(?:当前|當前)(?:牌组|牌組|卡组|卡組)\s*[:：]?/, ""));
+      if (screen.probes?.invitationDeck)
+        return clean(screen.probes.invitationDeck.text) === deckText(name) ? [screen.probes.invitationDeck] : [];
+      return screen.rowsAt(this.region("invitationDeckHeader") || [1620, 20, 290, 70])
+        .filter(r => clean(r.text) === deckText(name));
+    }
+    chooserNames(screen) {
+      const valid = r => r && deckText(r.text) && !/^(编辑牌组|选择牌组|选择|确认|出战牌组|牌组预览)$/.test(T.norm(r.text));
+      // Whole-screen positions follow partially scrolled cards. Fixed slot rectangles are a fallback,
+      // not extra duplicate cards when both recognizers see the same name at different offsets.
+      const full = screen.rowsAt(this.region("deckNames")).filter(valid);
+      const candidates = full.length ? full : (screen.probes?.slots || []).filter(valid);
+      const names = [];
+      for (const r of candidates) {
+        if (!names.some(old => deckText(old.text) === deckText(r.text) &&
+            Math.abs(old.x + old.width / 2 - r.x - r.width / 2) < 230)) names.push(r);
+      }
+      return names.sort((a, b) => a.x - b.x);
     }
     isReady(screen) {
       if (screen.has("更改牌组外观") || this.result(screen)) return false;
@@ -137,7 +173,8 @@
     isDeckChooser(screen) {
       return !this.isReady(screen) && !screen.has("更改牌组外观") &&
         (screen.has("编辑牌组") || screen.has("选择牌组") ||
-         screen.probes?.slots?.some(r => r && this.knownDeck(r.text)) && screen.matches(["选择"], this.region("select"), false).length > 0);
+         screen.probes?.slots?.some(r => r && this.knownDeck(r.text)) && screen.matches(["选择"], this.region("select"), false).length > 0 ||
+         this.deckListExpected && !this.isInvitationDialogue(screen) && !this.openingMarker(screen) && this.chooserNames(screen).length >= 2);
     }
     openingMarker(screen) {
       // Use the original players' scene locations, not short labels anywhere on an invitation/preview.
@@ -295,35 +332,104 @@
       this.verifyOpponent(context, screen, false);
       if (this.deckRows(screen, recipe.deck, "deckBadge").length) return;
       // This coordinate is inherited from the weekly script and used only after preparation-page recognition.
+      this.deckListExpected = true;
       this.h.click(...this.profile.points.openDeck); await this.pause(900);
       await this.wait(s => this.isDeckChooser(s), "打开牌组选择页", 6000);
-      for (let i = 1; i < this.config.deckPages; i++) await this.drag(this.profile.points.deckDragFirst);
-      let previous = null;
-      for (let page = 0; page < this.config.deckPages; page++) {
-        screen = this.read();
-        if (!this.isDeckChooser(screen)) throw new T.TrialError("UI", "牌组查找时离开了牌组选择页");
-        const found = this.deckRows(screen, recipe.deck, "deckNames");
-        if (found.length > 1) throw new T.TrialError("DECK_AMBIGUOUS", "存在同名牌组，请给牌组使用不同名称：" + recipe.deck);
-        if (found.length === 1) {
-          await this.tap(found[0], "选择牌组「" + recipe.deck + "」");
-          screen = this.read();
-          if (!this.isReady(screen)) {
-            const select = this.unique(screen, this.profile.texts.select, "select", false);
-            if (!select) throw new T.TrialError("UI", "选中牌组后找不到选择按钮");
-            await this.tap(select, "确认出战牌组");
-          }
-          await this.pause(this.profile.deckSelectDelayMs == null ? 4000 : this.profile.deckSelectDelayMs);
-          await this.wait(s => this.isReady(s) && this.deckRows(s, recipe.deck, "deckBadge").length, "确认已切换至「" + recipe.deck + "」", 8000);
-          return;
-        }
-        const signature = (screen.probes?.slots?.some(Boolean) ? screen.probes.slots.filter(Boolean) :
-          screen.rowsAt(this.region("deckNames"))).map(r => r.text).join("|");
-        if (signature === previous || page + 1 === this.config.deckPages) break;
-        previous = signature; await this.drag(this.profile.points.deckDragNext);
+      if (await this.pickDeck(recipe)) {
+        await this.wait(s => this.isReady(s) && this.deckRows(s, recipe.deck, "deckBadge").length, "确认已切换至「" + recipe.deck + "」", 8000);
+        return;
       }
       this.h.keyPress("ESCAPE");
       await this.wait(s => this.isReady(s), "找不到牌组后返回准备页", 6000);
+      this.deckListExpected = false;
       throw new T.TrialError("DECK_NOT_FOUND", "找不到游戏牌组「" + recipe.deck + "」，跳过「" + recipe.title + "」");
+    }
+    async stableDeckList() {
+      const end = Date.now() + (this.profile.deckSettleTimeoutMs || 20000), began = Date.now();
+      let previous = null, count = 0;
+      while (Date.now() < end) {
+        const screen = this.read();
+        if (!this.isDeckChooser(screen)) throw new T.TrialError("DECK_LIST_LOST", "拖动或查找时离开了卡组一览，停止开局");
+        const names = this.chooserNames(screen), signature = names.map(r => deckText(r.text)).join("|");
+        if (names.length && previous && this.sameDeckList(previous, names)) count++; else count = names.length ? 1 : 0;
+        if (count >= 3 && Date.now() - began >= (this.profile.deckSettleMs ?? 1200)) return { screen, names, signature };
+        previous = names;
+        await this.pause(300);
+      }
+      throw new T.TrialError("DECK_NAMES_UNREADABLE", "卡组名称未稳定或无法辨识；停止，不把空白OCR当成边界");
+    }
+    sameDeckList(before, after) {
+      return before.length === after.length && before.every((r, i) => deckText(r.text) === deckText(after[i].text) &&
+        Math.abs(r.x + r.width / 2 - after[i].x - after[i].width / 2) <= 24);
+    }
+    async leftmostDeckList() {
+      let before = await this.stableDeckList(), unchanged = 0;
+      for (let step = 0; step < (this.profile.deckResetMaxDrags || 30); step++) {
+        await this.drag(this.profile.points.deckDragFirst);
+        const after = await this.stableDeckList();
+        unchanged = this.sameDeckList(before.names, after.names) ? unchanged + 1 : 0;
+        this.report.event("deck-reset", { step: step + 1, first: after.names[0].text, names: after.names.map(r => r.text), unchanged });
+        if (unchanged >= 2) { this.read("deck-list-left"); return after; }
+        before = after;
+      }
+      throw new T.TrialError("DECK_BOUNDARY_UNVERIFIED", "向右拖动后仍无法确认卡组一览最左端，停止查找");
+    }
+    async pickDeck(recipe) {
+      let page = await this.leftmostDeckList(), unchanged = 0;
+      // Six overlapping small movements cover approximately one former four-deck page.
+      const limit = (Math.max(1, this.config.deckPages || 1) - 1) * 6;
+      for (let step = 0; step <= limit; step++) {
+        this.report.event("deck-search", { step, target: recipe.deck, names: page.names.map(r => r.text) });
+        const found = this.deckRows(page.screen, recipe.deck, "deckNames");
+        if (found.length > 1) throw new T.TrialError("DECK_AMBIGUOUS", "存在同名牌组，请给牌组使用不同名称：" + recipe.deck);
+        if (found.length === 1) {
+          await this.tap(found[0], "选择牌组「" + recipe.deck + "」");
+          const screen = this.read("deck-list-selected");
+          if (this.isDeckChooser(screen)) {
+            const select = this.unique(screen, this.profile.texts.select, "select", false);
+            if (!select) throw new T.TrialError("UI", "选中牌组后找不到选择按钮");
+            await this.tap(select, "确认出战牌组");
+          } else if (!this.isReady(screen) && !this.isInvitationDialogue(screen))
+            throw new T.TrialError("UI", "选择牌组后出现未知页面，停止开局");
+          this.deckListExpected = false;
+          await this.pause(this.profile.deckSelectDelayMs ?? 4000);
+          return true;
+        }
+        if (unchanged >= 2 || step === limit) break;
+        // A saved 0.4.2 profile has a page-wide deckDragNext; never reuse that to skip over names.
+        await this.drag(this.profile.points.deckSearchDrag || [1450, 200, 1130, 200]);
+        const after = await this.stableDeckList();
+        unchanged = this.sameDeckList(page.names, after.names) ? unchanged + 1 : 0;
+        page = after;
+      }
+      this.report.event("deck-not-found", { target: recipe.deck, reason: unchanged >= 2 ? "right-edge" : "search-range" });
+      return false;
+    }
+    async selectInvitationDeck(recipe, context) {
+      this.verifyOpponent(context, this.read(), false);
+      // An unprepared dialogue never falls through to the original default SPACE/F selection.
+      const screen = await this.wait(s => this.invitationOption(s, "adjust") ? s : false,
+        "等待「先调整一下卡组」选项（尚未选择牌组，禁止默认开始）", 45000);
+      await this.tap(this.invitationOption(screen, "adjust"), "先调整一下卡组");
+      this.deckListExpected = true;
+      await this.wait(s => this.isDeckChooser(s), "进入角色邀约卡组一览", 10000);
+      this.read("invite-deck-list");
+      if (!await this.pickDeck(recipe)) {
+        this.h.keyPress("ESCAPE");
+        await this.wait(s => this.isInvitationDialogue(s), "找不到牌组后返回邀约对话", 8000);
+        this.deckListExpected = false;
+        throw new T.TrialError("DECK_NOT_FOUND", "查找范围内没有游戏牌组「" + recipe.deck + "」，跳过此策略");
+      }
+      await this.wait(s => this.isInvitationDialogue(s) && this.invitationDeckRows(s, recipe.deck).length,
+        "返回邀约对话并确认当前牌组「" + recipe.deck + "」", 10000);
+      this.read("invite-deck-confirmed");
+    }
+    async startInvitationMatch(recipe, context) {
+      const screen = await this.wait(s => this.invitationOption(s, "play") ? s : false, "等待进行七圣召唤对局选项", 15000);
+      if (!context.difficultySelected || !this.invitationDeckRows(screen, recipe.deck).length)
+        throw new T.TrialError("DECK_UNVERIFIED", "邀约对话中未确认当前牌组和原难度，不开始对局");
+      await this.tap(this.invitationOption(screen, "play"), "已确认牌组，进行七圣召唤的对局");
+      await this.wait(s => !this.invitationOption(s, "play") && !this.invitationOption(s, "adjust"), "确认已离开邀约选项", 8000);
     }
     async startMatch(recipe, context) {
       const screen = this.read();

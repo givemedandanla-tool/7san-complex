@@ -3,6 +3,9 @@
   "timeoutMs": 45000,
   "pollMs": 600,
   "deckSelectDelayMs": 4000,
+  "deckSettleMs": 1200,
+  "deckSettleTimeoutMs": 20000,
+  "deckResetMaxDrags": 30,
   "deckNameSlots": [[135, 762, 230, 46], [598, 762, 230, 46], [1061, 762, 230, 46], [1524, 762, 230, 46]],
   "regions": {
     "invitationIdentity": [1050, 80, 850, 570],
@@ -10,6 +13,9 @@
     "difficulty": [850, 80, 1050, 650],
     "deckBadge": [1200, 650, 690, 270],
     "deckNameProbe": [1305, 793, 206, 46],
+    "invitationDeckHeader": [1620, 20, 290, 70],
+    "invitationDeckName": [1740, 20, 175, 65],
+    "invitationDialogue": [900, 200, 1000, 740],
     "deckNames": [0, 650, 1920, 280],
     "start": [1250, 780, 650, 290],
     "select": [950, 900, 930, 170],
@@ -26,8 +32,8 @@
   },
   "points": {
     "openDeck": [1312, 812],
-    "deckDragFirst": [200, 300, 1720, 300],
-    "deckDragNext": [1720, 300, 200, 300]
+    "deckDragFirst": [100, 200, 1800, 200],
+    "deckSearchDrag": [1450, 200, 1130, 200]
   },
   "texts": {
     "prepare": ["我方出战牌组", "出战牌组"],
