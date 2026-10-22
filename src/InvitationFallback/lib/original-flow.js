@@ -54,16 +54,16 @@
       throw new T.TrialError("EXHAUSTED", "没有找到本段可用牌组，停止开局", { played: this.active.played, history: this.active.history });
     }
     async beforeInviteStart() {
-      const screen = this.ui.read();
+      const screen = this.ui.read("before-invite-start");
       // This is still the original invitation page in many game states, including a locked serious tab.
       // Observe it without requiring it to be the later deck preparation page.
       this.ui.verifyOriginalSelection(this.active.context, screen);
       await this.prepareDeckIfReady(screen);
     }
-    async beforeInviteConfirm() { await this.prepareDeckIfReady(); }
+    async beforeInviteConfirm() { await this.prepareDeckIfReady(this.ui.read("before-invite-confirm")); }
     requirePreparedDeck() {
       if (!this.attempt || !this.attempt.prepared)
-        throw new T.TrialError("DECK_SELECTION_TOO_LATE", "已进入初始手牌但尚未经过可换牌组的准备页，不能确认牌组；已停止，请提供现场诊断");
+        throw new T.TrialError("DECK_SELECTION_TOO_LATE", "已识别到牌桌开局标记，但未确认选好牌组；已停止。请提供 data/before-invite-start.json、before-invite-confirm.json 与 last-error.json");
     }
     async dialogueStep(screen) {
       // This hook must stay inactive during the original post-game dialogue.

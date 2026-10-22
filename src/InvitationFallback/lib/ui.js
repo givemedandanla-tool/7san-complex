@@ -31,14 +31,34 @@
         throw new T.TrialError("CANCELLED", "已停止当前任务");
     }
     async pause(ms) { this.checkCancelled(); await this.h.sleep(ms); this.checkCancelled(); }
-    read() {
+    read(stage) {
       this.checkCancelled();
       const image = this.h.captureGameRegion();
       try {
         const ro = this.h.RecognitionObject.ocr(0, 0, Number(image.width), Number(image.height));
         const rows = T.list(image.findMulti(ro)).map(rowData).filter(r => r.text && Number.isFinite(r.x) && Number.isFinite(r.y));
-        this.lastScreen = new Screen(rows); return this.lastScreen;
+        this.lastScreen = new Screen(rows);
+        if (stage) this.checkpoint(stage, this.lastScreen, image);
+        return this.lastScreen;
       } finally { image.dispose(); }
+    }
+    checkpoint(stage, screen, image) {
+      const safe = String(stage).replace(/[^a-z0-9_-]/gi, "");
+      if (!safe) return;
+      const details = { at: new Date().toISOString(), stage: safe,
+        page: { ready: this.isReady(screen), invitation: this.isInvitation(screen),
+          deckChooser: this.isDeckChooser(screen), opening: this.isOpening(screen) }, rows: screen.rows };
+      this.report.event("ui-stage", details);
+      const file = this.h.file;
+      // Checkpoints are diagnostic evidence; an optional image failure must not change the game route.
+      try {
+        if (typeof file.writeTextSync === "function")
+          file.writeTextSync("data/" + safe + ".json", JSON.stringify(details, null, 2), false);
+        if (this.config.diagnosticImages && typeof file.writeImageSync === "function")
+          file.writeImageSync("data/" + safe + ".png", image.srcMat);
+      } catch (error) {
+        this.report.event("checkpoint-error", { stage: safe, message: String(error.message || error) });
+      }
     }
     region(key) { return this.profile.regions[key]; }
     async tap(row, reason) {
@@ -62,9 +82,20 @@
     }
     isDeckChooser(screen) { return !this.isReady(screen) && (screen.has("编辑牌组") || screen.has("选择牌组")) && !screen.has("更改牌组外观"); }
     isOpening(screen) {
-      return !this.isReady(screen) && !this.isDeckChooser(screen) &&
-        (screen.has("请选择要替换的手牌") || screen.has("初始手牌") ||
-         screen.matches(["出战角色", "重投", "重投骰子", "确认重投"], null, false).length > 0);
+      if (this.isReady(screen) || this.isInvitation(screen) || this.isDeckChooser(screen) || screen.has("更改牌组外观")) return false;
+      // Use the original players' scene locations, not short labels anywhere on an invitation/preview.
+      // Older saved profiles may lack these keys; never let an absent ROI mean the whole screen.
+      const region = (name, fallback) => this.region(name) || fallback;
+      const openingHeader = region("openingHeader", [844, 167, 232, 65]);
+      const openingPrompt = region("openingPrompt", [740, 215, 450, 75]);
+      const rollHeader = region("rollHeader", [844, 167, 232, 65]);
+      const pickPrompt = region("pickPrompt", [138, 1020, 280, 48]);
+      const pickLabel = region("pickLabel", [1730, 820, 190, 100]);
+      return screen.matches(["初始手牌"], openingHeader, true).length > 0 ||
+        screen.matches(["请选择要替换的手牌"], openingPrompt, true).length > 0 ||
+        screen.matches(["重投骰子"], rollHeader, true).length > 0 ||
+        screen.rowsAt(pickPrompt).some(r => /^(请选择|选择)出战角色/.test(T.norm(r.text))) ||
+        screen.matches(["出战角色"], pickLabel, false).length > 0;
     }
     verifyOpponent(context, screen, requireVisible) {
       // Original mode owns character/tab selection. Its panel is checked once after each selection.

@@ -4,11 +4,13 @@
 
 ## 下載與使用
 
-**[下載 InvitationFallback-0.4.0.zip](downloads/InvitationFallback-0.4.0.zip?raw=true)**（約 4.7 MB）。在檔案頁也可按「Download raw file」。[ZIP SHA-256](downloads/SHA256SUMS)。
+**[下載 InvitationFallback-0.4.1.zip](downloads/InvitationFallback-0.4.1.zip?raw=true)**（約 4.7 MB）。在檔案頁也可按「Download raw file」。[ZIP SHA-256](downloads/SHA256SUMS)。
 
 解壓後將 `InvitationFallback` 放到 BetterGI `User/JsScript/`，在調度器設定原版「挑戰人數、持有邀請函數量」，再填各牌組名稱與排序即可。**不用填對手姓名、難度或先進準備頁。**
 
 0.4.0 依使用者釐清還原原版購函邏輯，欄位忠實顯示「持有邀請函數量（已邀請角色也算）」；填 `0` 首輪會買一張，沒有額外購函開關。智慧牌手單局超時改成手動輸入正整數分鐘，輸入 `120` 就以 120 分鐘為上限。
+
+0.4.1 修正已重現的開局誤判：邀約／牌組預覽中央的「出戰角色」不再被判為初始手牌，改用原智慧牌手的牌桌區域。新增 `data/before-invite-start.*` 與 `data/before-invite-confirm.*`，保存原邀約開始及確認前的 OCR／可選截圖。這次使用者回報是否由誤判觸發，或實際邀約選牌入口尚未適配，仍需現場資料核對；不宣稱已打通未觀察過的畫面。
 
 保留 BUG 2 修正：完整執行原版「邀約對局／確認」，認真勝負鎖定而仍處於友好對局時，不會因尚未出現牌組準備頁而提前停止。[原版 197 行逐行分析與根因](docs/UPSTREAM_LINE_REVIEW.md)。
 
@@ -16,7 +18,7 @@
 
 完整環境要求、牌表及運行步驟見[套件說明](src/InvitationFallback/README.md)。遊戲使用簡體中文及 1920×1080，BetterGI 0.66.0+。目前通過離線測試與原版操作軌跡比對，尚未在遊戲內實測。
 
-0.1.0～0.3.0 僅保留作歷史下載，請改用 0.4.0。
+0.1.0～0.4.0 僅保留作歷史下載，請改用 0.4.1。
 
 ## 開發與打包
 
@@ -28,7 +30,7 @@ npm test
 npm run check
 ```
 
-產物：`dist/InvitationFallback-0.4.0.zip`。`downloads/` 保存對應可安裝成品及校驗碼。
+產物：`dist/InvitationFallback-0.4.1.zip`。`downloads/` 保存對應可安裝成品及校驗碼。
 
 `vendor/` 保存固定版本的原邀約腳本、四套牌手及素材，依 `vendor/lock.json` 校驗。`tools/build.py` 由原版產生導航接入層和牌手工廠，保留原有主流程與牌手決策；建置及執行均無需下載遠端程式。
 

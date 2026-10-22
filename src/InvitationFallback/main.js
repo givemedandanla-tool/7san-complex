@@ -11,7 +11,7 @@
   const report = {
     event(type, data) {
       events.push({ at: new Date().toISOString(), type, data });
-      if (!file.writeTextSync("data/last-run.json", JSON.stringify({ version: "0.4.0", outcome, events }, null, 2), false))
+      if (!file.writeTextSync("data/last-run.json", JSON.stringify({ version: "0.4.1", outcome, events }, null, 2), false))
         throw new Error("无法写入运行记录 data/last-run.json");
     }
   };

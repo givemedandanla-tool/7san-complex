@@ -1,6 +1,6 @@
 {
   "name": "bettergi-invitation-fallback-trial",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "BetterGI 七圣角色邀约：四套原有牌手与败北换牌组重打测试版",
   "scripts": {

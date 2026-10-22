@@ -14,7 +14,12 @@
     "exit": [450, 780, 1050, 270],
     "dialogueOptions": [1020, 270, 880, 670],
     "confirm": [1010, 650, 390, 220],
-    "purchaseQuantity": [850, 550, 220, 140]
+    "purchaseQuantity": [850, 550, 220, 140],
+    "openingHeader": [844, 167, 232, 65],
+    "openingPrompt": [740, 215, 450, 75],
+    "rollHeader": [844, 167, 232, 65],
+    "pickPrompt": [138, 1020, 280, 48],
+    "pickLabel": [1730, 820, 190, 100]
   },
   "points": {
     "openDeck": [1312, 812],
